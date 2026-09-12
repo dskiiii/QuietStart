@@ -1,0 +1,51 @@
+# MERGE FRAGMENT ONLY. Preserve original proxies, groups, DNS and append original rules.
+mode: rule
+rule-providers:
+  quietstart-antiad:
+    type: http
+    behavior: domain
+    format: yaml
+    path: ./rule-providers/quietstart-antiad.yaml
+    url: https://raw.githubusercontent.com/privacy-protection-tools/anti-AD/master/anti-ad-clash.yaml
+    interval: 86400
+rules:
+- RULE-SET,quietstart-antiad,REJECT
+- DOMAIN-SUFFIX,adm.baidu.cn,REJECT
+- DOMAIN-SUFFIX,adscdn.baidu.cn,REJECT
+- DOMAIN-SUFFIX,cpro.baidu.cn,REJECT
+- DOMAIN-SUFFIX,mobads.baidu.cn,REJECT
+- DOMAIN-SUFFIX,ada.baidu.com,REJECT
+- DOMAIN-SUFFIX,adscdn.baidu.com,REJECT
+- DOMAIN-SUFFIX,cpro.baidu.com,REJECT
+- DOMAIN-SUFFIX,mobads.baidu.com,REJECT
+- DOMAIN-SUFFIX,pos.baidu.com,REJECT
+- DOMAIN-SUFFIX,adavideo.baidu.com,REJECT
+- DOMAIN-SUFFIX,aden.baidu.com,REJECT
+- DOMAIN-SUFFIX,adm.baidu.com,REJECT
+- DOMAIN-SUFFIX,cpro.baidustatic.com,REJECT
+- DOMAIN-SUFFIX,mobads-pre-config.cdn.bcebos.com,REJECT
+- DOMAIN-SUFFIX,advert.lx.netease.com,REJECT
+- DOMAIN-SUFFIX,yt-adv.bn.netease.com,REJECT
+- DOMAIN-SUFFIX,gdt.qq.com,REJECT
+- DOMAIN-SUFFIX,mi.gdt.qq.com,REJECT
+- DOMAIN-SUFFIX,ads-img-al.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-img-qc.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-video-al.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-video-qc.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-i1.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-i2.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-i3.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-i4.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,ads-static.xhscdn.com,REJECT
+- DOMAIN-SUFFIX,sdk.1rtb.net,REJECT
+- DOMAIN-SUFFIX,s.1rtb.net,REJECT
+- DOMAIN-SUFFIX,sdk.beizi.biz,REJECT
+- DOMAIN-SUFFIX,api-htp.beizi.biz,REJECT
+- DOMAIN-SUFFIX,adx-cfg-u1.ubixioe.com,REJECT
+- DOMAIN-SUFFIX,entry-su1.ubixioe.com,REJECT
+- DOMAIN-SUFFIX,adx-data-u1.ubixioe.com,REJECT
+- DOMAIN-SUFFIX,sdk.adx.adwangmai.com,REJECT
+- DOMAIN-SUFFIX,sdk.zhangyuyidong.cn,REJECT
+- DOMAIN-SUFFIX,oss.cdn.adintl.cn,REJECT
+- DOMAIN-SUFFIX,afd.baidu.com,REJECT
+- DOMAIN-SUFFIX,afdconf.baidu.com,REJECT

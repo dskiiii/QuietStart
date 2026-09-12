@@ -1,0 +1,16 @@
+.tooling/
+.gradle/
+local.properties
+**/build/
+*.jks
+*.keystore
+dist/
+__pycache__/
+*.pyc
+.idea/
+*.iml
+.env
+.env.*
+VERIFICATION.md
+OPEN-SOURCE-REVIEW.md
+RULE-UPDATE-0.1.2.md

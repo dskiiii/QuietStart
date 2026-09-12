@@ -1,0 +1,6 @@
+<resources>
+    <string name="home_counts">已拦截 %1$d 次请求</string>
+    <string name="full_rules">使用完整 anti-AD 规则库（推荐）</string>
+    <string name="target_label">%1$s%2$s</string>
+    <string name="request_counts">本次进程累计  拦截 %1$d  /  放行 %2$d  /  失败 %3$d\n%4$s</string>
+</resources>
