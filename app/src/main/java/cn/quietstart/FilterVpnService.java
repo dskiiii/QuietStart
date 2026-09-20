@@ -20,6 +20,31 @@ public final class FilterVpnService extends VpnService {
     public static volatile boolean stopping=false;
     private static FilterVpnService instance;
     private volatile int generation;
+    private static final Handler stateHandler=new Handler(Looper.getMainLooper());
+    private static Runnable startTimeout;
+    private static void cancelStartTimeout(){
+        if(startTimeout!=null)stateHandler.removeCallbacks(startTimeout);
+        startTimeout=null;
+    }
+    private static void watchStart(Context context){
+        if(startTimeout!=null)return;
+        Context app=context.getApplicationContext();
+        startTimeout=()->{
+            startTimeout=null;
+            if(!starting)return;
+            status="启动超时，过滤未开启，请重试";
+            FilterVpnService service=instance;
+            if(service!=null){service.stopFiltering();service.stopSelf();}
+            else {starting=false;running=false;stopping=false;app.stopService(new Intent(app,FilterVpnService.class));notifyState(app);}
+        };
+        stateHandler.postDelayed(startTimeout,20000);
+    }
+    public static void start(Context context){
+        prefs(context).edit().putBoolean("user_paused",false).apply();
+        starting=true;status="正在启动…";watchStart(context);
+        try{context.startForegroundService(new Intent(context,FilterVpnService.class));}
+        catch(RuntimeException e){cancelStartTimeout();starting=false;status="启动失败："+e.getClass().getSimpleName();notifyState(context);throw e;}
+    }
     @Override public void onCreate(){super.onCreate();instance=this;}
     public static void notifyState(Context c){c.sendBroadcast(new Intent(STATE_CHANGED).setPackage(c.getPackageName()));}
     public static void pause(Context c){
@@ -55,7 +80,11 @@ public final class FilterVpnService extends VpnService {
     private final Set<Closeable> sockets=ConcurrentHashMap.newKeySet();
     private final Object writeLock=new Object();
 
-    public static SharedPreferences prefs(Context c) { return c.getSharedPreferences("settings",MODE_PRIVATE); }
+    public static synchronized SharedPreferences prefs(Context c) {
+        SharedPreferences p=c.getSharedPreferences("settings",MODE_PRIVATE);
+        if(!p.getBoolean("general_scope_v1",false))p.edit().putBoolean("all_apps",true).putBoolean("general_scope_v1",true).apply();
+        return p;
+    }
     public static String defaults(Context c) throws IOException {
         try(InputStream in=c.getAssets().open("default-domains.txt")) { return new String(in.readAllBytes(),StandardCharsets.UTF_8); }
     }
@@ -71,7 +100,7 @@ public final class FilterVpnService extends VpnService {
     public static synchronized String finishDiagnostic() {
         if(diagnosticApp.isEmpty()) return "尚未开始复现记录。";
         diagnosticDeadline=0;
-        StringBuilder result=new StringBuilder("静启诊断 0.3.2\n开始时间：").append(diagnosticTime)
+        StringBuilder result=new StringBuilder("静启诊断 0.4.0\n开始时间：").append(diagnosticTime)
             .append("\n复现应用：").append(diagnosticApp).append("\n设备：").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
             .append("\nAndroid：").append(Build.VERSION.RELEASE).append(" / API ").append(Build.VERSION.SDK_INT)
             .append("\n服务：").append(status).append("\n过滤范围：").append(scope).append("\n规则：").append(ruleInfo)
@@ -114,15 +143,26 @@ public final class FilterVpnService extends VpnService {
             ruleWorker.execute(()->{try {loadRules();}catch(Exception e){log("规则","加载失败，继续使用原规则");}});
             return START_STICKY;
         }
-        if(tun!=null) return START_STICKY;
+        if(tun!=null){
+            // A repeated Activity/OS start is not a new filtering session.
+            if(!closed&&rules!=null&&reader!=null&&reader.isAlive()){
+                starting=false;running=true;stopping=false;status="过滤运行中";
+                cancelStartTimeout();notifyState(this);return START_STICKY;
+            }
+            if(!closed&&reader==null&&starting){
+                status="正在载入广告规则…";watchStart(this);notifyState(this);return START_STICKY;
+            }
+            stopFiltering();
+        }
         try {
+            starting=true;running=false;watchStart(this);
             if(VpnService.prepare(this)!=null) throw new IOException("需要重新授权 VPN");
             Builder builder=new Builder().setSession("静启 · 开屏广告过滤")
                 .setMtu(32767).addAddress("10.77.0.1",32).addDnsServer("10.77.0.2")
                 .addRoute("10.77.0.2",32).allowFamily(OsConstants.AF_INET6).setBlocking(true)
                 .setConfigureIntent(openIntent());
             builder.setMetered(false);
-            boolean all=prefs(this).getBoolean("all_apps",false);
+            boolean all=prefs(this).getBoolean("all_apps",true);
             int count=0; StringJoiner names=new StringJoiner("、");
             for(int i=0;!all&&i<PACKAGES.length;i++) {
                 if(!prefs(this).getBoolean(PACKAGES[i],true)) continue;
@@ -150,6 +190,7 @@ public final class FilterVpnService extends VpnService {
                     new Handler(Looper.getMainLooper()).post(()->{
                         if(closed||session!=generation||prefs(this).getBoolean("user_paused",false))return;
                         starting=false;running=true;status="过滤运行中";
+                        cancelStartTimeout();
                         notifyState(this);
                         reader=new Thread(()->readLoop(session,sessionTun,sessionWaiter,sessionPool),"QuietStart-DNS");reader.start();
                     });
@@ -256,6 +297,7 @@ public final class FilterVpnService extends VpnService {
     }
     @Override public void onRevoke() {new Handler(Looper.getMainLooper()).post(()->{status="VPN 授权已撤销或被其他 VPN 替换";stopFiltering();stopSelf();});}
     private void stopFiltering() {
+        cancelStartTimeout();
         generation++;
         closed=true; running=false; starting=false;
         if(waiter!=null) {if(reader==null)waiter.close();else waiter.signalStop();}

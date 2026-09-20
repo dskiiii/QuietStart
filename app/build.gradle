@@ -6,9 +6,18 @@ android {
         applicationId 'cn.quietstart'
         minSdk 33
         targetSdk 35
-        versionCode 8
-        versionName '0.3.2'
+        versionCode 19
+        versionName '0.5.8'
         testInstrumentationRunner 'cn.quietstart.IdleWaitInstrumentation'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all { jvmArgs '-Dfile.encoding=UTF-8' }
+    }
+}
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
 }

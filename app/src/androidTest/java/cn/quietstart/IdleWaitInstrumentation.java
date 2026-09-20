@@ -8,10 +8,12 @@ import java.util.concurrent.*;
 
 /** Device-only OS integration checks; no device means these are compiled, not executed. */
 public final class IdleWaitInstrumentation extends Instrumentation {
-    @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+    private boolean lifecycle;
+    @Override public void onCreate(Bundle args){super.onCreate(args);lifecycle=args!=null&&"true".equals(args.getString("lifecycle"));start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
         try {
+            if(lifecycle){result.putString("stream",LifecycleChecks.run(this));finish(-1,result);return;}
             checkStop(false);checkStop(true);checkPacket();
             result.putString("stream","PASS: idle blocks; explicit stop wakes; stop before wait; packet wakes; repeated close\n");finish(-1,result);
         }catch(Throwable e){result.putString("stream","FAIL: "+e+"\n");finish(1,result);}

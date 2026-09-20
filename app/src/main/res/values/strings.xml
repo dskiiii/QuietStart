@@ -3,4 +3,7 @@
     <string name="full_rules">使用完整 anti-AD 规则库（推荐）</string>
     <string name="target_label">%1$s%2$s</string>
     <string name="request_counts">本次进程累计  拦截 %1$d  /  放行 %2$d  /  失败 %3$d\n%4$s</string>
+    <string name="skip_service_description">在各应用中读取当前界面控件，尝试点击明确的跳过广告、关闭广告按钮，或同一局部区域内带广告标记的关闭按钮。系统界面不处理。内容仅在本机即时处理，不保存或上传，不截屏。携程开屏兼容点击会在实时识别的右上角跳过广告文字位置模拟轻点，可单独关闭。需打开静启中的自动关闭开关，可随时关闭或排除应用。无法保证所有广告都能识别。</string>
+    <string name="skip_state">自动关闭广告：%1$s%2$s</string>
+    <string name="skip_count">\n已发出关闭点击 %1$d 次（不等同于成功关闭次数）</string>
 </resources>

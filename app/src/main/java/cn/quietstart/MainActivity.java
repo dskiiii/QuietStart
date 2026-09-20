@@ -15,7 +15,7 @@ import java.util.*;
 
 public final class MainActivity extends Activity {
     private LinearLayout body;
-    private TextView status,counts,network,ruleStatus;
+    private TextView status,counts,network,ruleStatus,skipStatus;
     private Switch allApps;
     private Button mainToggle;
     private String page="home";
@@ -41,13 +41,14 @@ public final class MainActivity extends Activity {
         showPage(b==null?"home":b.getString("page","home"));
     }
     private void showPage(String destination) {
-        page=destination;body.removeAllViews();targets.clear();allApps=null;ruleStatus=null;mainToggle=null;
+        page=destination;body.removeAllViews();targets.clear();allApps=null;ruleStatus=null;mainToggle=null;skipStatus=null;
         ((ScrollView)body.getParent()).scrollTo(0,0);
         network=new TextView(this);
         if("home".equals(page)) {
-        label("静启",34,true); label("让打开应用更安静",17,false);
+        label("静启",34,true); label("让应用和浏览更安静",17,false);
         gap(18); status=label("",22,true); counts=label("",14,false);
         label("开启后，收起页面即可继续过滤。",14,false);
+        skipStatus=label("",13,false);
         gap(10);
         mainToggle=button("开启过滤",()->{
             if(FilterVpnService.stopping)return;
@@ -64,15 +65,33 @@ public final class MainActivity extends Activity {
             label("设置",28,true);
             button("过滤范围",()->showPage("scope"),false);
             button("规则与白名单",()->showPage("rules"),false);
+            button("自动关闭广告",()->showPage("skip"),false);
             button("后台运行",()->showPage("background"),false);
             button("问题排查",()->showPage("diagnostics"),false);
             button("关于静启",()->showPage("about"),false);
             refresh();return;
         }
+        if("skip".equals(page)) {
+            label("自动关闭广告",24,true);
+            label("在各应用中识别明确的跳过广告、关闭广告按钮，以及同一局部区域内带广告标记的关闭按钮。系统界面不处理；不保存或上传界面内容。",14,false);
+            Switch skip=new Switch(this);skip.setText("启用自动关闭广告");skip.setChecked(AdSkipService.enabled(this));
+            skip.setOnCheckedChangeListener((v,on)->{FilterVpnService.prefs(this).edit().putBoolean("skip_ads",on).apply();refresh();});body.addView(skip);
+            Switch popup=new Switch(this);popup.setText("同时关闭带明确标识的广告弹窗");popup.setChecked(AdSkipService.popupsEnabled(this));
+            popup.setOnCheckedChangeListener((v,on)->FilterVpnService.prefs(this).edit().putBoolean("popup_ads",on).apply());body.addView(popup);
+            Switch ctripTap=new Switch(this);ctripTap.setText("携程开屏兼容点击");ctripTap.setChecked(FilterVpnService.prefs(this).getBoolean("ctrip_tap",true));
+            ctripTap.setOnCheckedChangeListener((v,on)->FilterVpnService.prefs(this).edit().putBoolean("ctrip_tap",on).apply());body.addView(ctripTap);
+            label("携程未提供可点击控件时，仅在实时识别的右上角“跳过广告”文字处轻点；不使用固定坐标。",13,false);
+            label("中国移动开屏：只在右上角倒计时跳过按钮和明确广告标记同时存在时轻点。",13,false);
+            button("自动关闭排除名单",this::editSkipExclusions,false);
+            skipStatus=label("",15,true);
+            button("打开系统无障碍设置",()->open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)),false);
+            label("打开上方开关后，在系统无障碍设置启用“静启 · 自动关闭广告”。无需逐个添加应用；不同应用和版本不保证成功。",13,false);
+            label("与 VPN 过滤独立开关，无需 VPN 也可跳过。暂停过滤只停止域名过滤；关闭本页开关立即停止自动点击。广告可能短暂闪现。没有明确标识的促销弹窗、图片内的关闭按钮可能无法识别；不会自动清除网页广告空白。",13,false);
+        }
         if("scope".equals(page)) {
         gap(16); label("过滤哪些应用",20,true);
-        label("只处理下方已安装、已勾选的应用。修改范围前请先暂停。",13,false);
-        allApps=new Switch(this);allApps.setText("扩展到所有应用");allApps.setChecked(FilterVpnService.prefs(this).getBoolean("all_apps",false));
+        label("默认覆盖全部应用和浏览器；关闭全局过滤后，可选择下方应用。修改范围前请先暂停。",13,false);
+        allApps=new Switch(this);allApps.setText("过滤所有应用和浏览器");allApps.setChecked(FilterVpnService.prefs(this).getBoolean("all_apps",true));
         allApps.setOnCheckedChangeListener((v,on)->{FilterVpnService.prefs(this).edit().putBoolean("all_apps",on).apply();refresh();});body.addView(allApps);
         for(int i=0;i<FilterVpnService.PACKAGES.length;i++) {
             String pkg=FilterVpnService.PACKAGES[i]; boolean installed=installed(pkg);
@@ -119,12 +138,20 @@ public final class MainActivity extends Activity {
         label("在系统设置中允许静启后台自启动，将省电策略设为无限制。VPN 设置若提供“始终开启 VPN”可启用；请勿开启“阻止不使用 VPN 的连接”，本软件只接管 DNS，这个选项可能导致断网。菜单名称以你的澎湃 OS 版本为准。",13,false);
         }
         if("about".equals(page)) {
-        label("静启 0.3.2",24,true);
+        label("静启 0.5.8",24,true);
         gap(16); label("使用前请了解",20,true);
         label("• 首次开启需要系统 VPN 授权；已有 VPN 会被替换。\n• 会隐藏最近任务卡片，系统仍可显示 VPN 标识、通知和运行服务。清理、强行停止或系统省电仍可能终止过滤。\n• 广告加载成功或已有缓存时，摇一摇仍可能触发。本软件不能禁用其他应用的传感器，也不保证三个应用所有版本都有效。\n• 自带加密 DNS、直连 IP、共享业务域名的广告可能绕过。第一版支持系统 UDP DNS，暂不支持客户端直接使用 TCP DNS。\n• 普通网络连接不经过代理。未拦截域名交给阿里公共 DNS（223.5.5.5），失败后尝试腾讯公共 DNS（119.29.29.29），使用普通 DNS 查询；本软件没有上传日志或统计功能。",13,false);
         button("规则来源与许可",()->{try{message("anti-AD · MIT License","默认使用 anti-AD 完整域名库，另保留精简兼容模式。点击更新才会通过 HTTPS 下载公开规则，不上传诊断记录。\nhttps://github.com/privacy-protection-tools/anti-AD\n\n"+new String(getAssets().open("ANTI-AD-LICENSE.txt").readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));}catch(Exception e){message("错误",e.getMessage());}},false);
         }
         refresh();
+    }
+    private void editSkipExclusions(){
+        EditText input=new EditText(this);input.setMinLines(4);input.setHint("每行一个应用包名，例如 com.example.app");
+        input.setText(String.join("\n",FilterVpnService.prefs(this).getStringSet("skip_excluded",Collections.emptySet())));
+        new AlertDialog.Builder(this).setTitle("不自动点击这些应用").setMessage("排除名单只影响自动关闭，不影响域名过滤。保存后立即生效。").setView(input).setNegativeButton("取消",null).setPositiveButton("保存",(d,w)->{
+            Set<String> excluded=new HashSet<>();for(String line:input.getText().toString().split("\\s+"))if(!line.isBlank())excluded.add(line.trim());
+            FilterVpnService.prefs(this).edit().putStringSet("skip_excluded",excluded).apply();
+        }).show();
     }
     private void gap(int h) { View v=new View(this); body.addView(v,new LinearLayout.LayoutParams(1,dp(h))); }
     private TextView label(String text,int size,boolean bold) {
@@ -142,7 +169,7 @@ public final class MainActivity extends Activity {
     private void startFilter() {
         if(FilterVpnService.starting){message("正在载入规则","请稍候，完整规则库只在启动或更新时加载。");return;}
         if(FilterVpnService.running) { message("已经开启","过滤服务正在运行，可以收起页面。"); return; }
-        boolean any=FilterVpnService.prefs(this).getBoolean("all_apps",false);
+        boolean any=FilterVpnService.prefs(this).getBoolean("all_apps",true);
         for(String pkg:FilterVpnService.PACKAGES) if(installed(pkg)&&FilterVpnService.prefs(this).getBoolean(pkg,true)) any=true;
         if(!any) {message("没有目标应用","请安装并勾选小红书、网易云音乐或百度地图中的至少一个。");return;}
         if(checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED)
@@ -160,20 +187,21 @@ public final class MainActivity extends Activity {
     }
     private void launchService() {
         try {
-            FilterVpnService.prefs(this).edit().putBoolean("user_paused",false).apply();
-            FilterVpnService.starting=true;FilterVpnService.status="正在启动…";
-            startForegroundService(new Intent(this,FilterVpnService.class));refresh();
+            FilterVpnService.start(this);refresh();
         }catch(Exception e){FilterVpnService.starting=false;FilterVpnService.status="启动失败";refresh();message("启动失败",e.getMessage());}
     }
     private void refresh() {
         if(status==null)return;
+        if(skipStatus!=null)skipStatus.setText(getString(R.string.skip_state,!AdSkipService.enabled(this)?"关闭":AdSkipService.connected?"已连接":"等待开启系统无障碍服务","skip".equals(page)?getString(R.string.skip_count,FilterVpnService.prefs(this).getLong("skip_clicks",0)):""));
+        if(skipStatus!=null&&"skip".equals(page))skipStatus.append("\n本次界面事件："+AdSkipService.received+"，扫描："+AdSkipService.scans+"\n"+AdSkipService.outcome+"\n"+AdSkipService.lastPackage);
+        if(skipStatus!=null&&"skip".equals(page))skipStatus.append("\n最近携程触摸："+FilterVpnService.prefs(this).getString("ctrip_tap_status","尚未识别到跳过按钮"));
         status.setText(FilterVpnService.status);
         if(mainToggle!=null){
             mainToggle.setText(FilterVpnService.stopping?"正在暂停…":FilterVpnService.starting?"取消启动":FilterVpnService.running?"暂停过滤":"开启过滤");
             mainToggle.setEnabled(!FilterVpnService.stopping);
         }
         counts.setText("home".equals(page)?getString(R.string.home_counts,FilterVpnService.blocked.get()):getString(R.string.request_counts,FilterVpnService.blocked.get(),FilterVpnService.passed.get(),FilterVpnService.failed.get(),FilterVpnService.running?"范围："+FilterVpnService.scope:"开启后可收起页面，桌面图标始终保留"));
-        boolean all=FilterVpnService.prefs(this).getBoolean("all_apps",false);
+        boolean all=FilterVpnService.prefs(this).getBoolean("all_apps",true);
         for(Switch sw:targets) sw.setEnabled(Boolean.TRUE.equals(sw.getTag())&&!FilterVpnService.running&&!FilterVpnService.starting&&!all);
         if(allApps!=null)allApps.setEnabled(!FilterVpnService.running&&!FilterVpnService.starting);
         if(ruleStatus!=null)ruleStatus.setText(FilterVpnService.ruleInfo);
@@ -195,7 +223,7 @@ public final class MainActivity extends Activity {
         if(!FilterVpnService.running){message("请先开启过滤","开启后再复现广告，才能记录过滤过程。");return;}
         new AlertDialog.Builder(this).setTitle("选择要复现广告的应用").setItems(FilterVpnService.NAMES,(d,index)->{
             String pkg=FilterVpnService.PACKAGES[index];
-            if(!installed(pkg)||(!FilterVpnService.prefs(this).getBoolean("all_apps",false)&&!FilterVpnService.prefs(this).getBoolean(pkg,true))){message("应用未在过滤范围内","请先暂停过滤，安装并勾选该应用，再重新开启。");return;}
+            if(!installed(pkg)||(!FilterVpnService.prefs(this).getBoolean("all_apps",true)&&!FilterVpnService.prefs(this).getBoolean(pkg,true))){message("应用未在过滤范围内","请先暂停过滤，安装并勾选该应用，再重新开启。");return;}
             String version="";try{version=getPackageManager().getPackageInfo(pkg,0).versionName;}catch(PackageManager.NameNotFoundException ignored){}
             final String app=FilterVpnService.NAMES[index]+" "+version;
             new AlertDialog.Builder(this).setTitle("记录 60 秒请求").setMessage("记录本机经过过滤器的域名，保存在内存中，不上传。点击开始后打开目标应用；等广告出现，回到静启点击“结束记录 / 查看诊断报告”。这次测试不会新增拦截规则。")
