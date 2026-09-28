@@ -1,3 +1,5 @@
+0.6.0 adds HTTPS subscriptions and local rule-file import, with explicit confirmation for unsupported rules and domain exception support. Large imported lists now load without the observed startup timeout. A 16-launch device comparison did not establish that FilterFusion is better than anti-AD; both still showed splash ads. See [verification](VERIFICATION-0.6.0.md).
+
 0.5.8 adds a strictly validated Baidu Maps splash-skip view-ID rule. 31 Android unit tests pass. No real splash ad appeared during this device retest; dismissal remains unverified. See [verification](VERIFICATION-0.5.8.md).
 
 0.5.7 adds conservative countdown-skip matching with an adjacent visible ad marker. One NetEase device run logged the new click and then showed the home screen; a repeat without a captured ad is inconclusive. 26 Android unit tests pass. China Mobile remains unresolved. See [verification](VERIFICATION-0.5.7.md).
@@ -22,13 +24,13 @@
 
 **QuietStart** (Chinese name: **静启**) is a no-root DNS ad filter for Android 13 and later. It uses Android's local VPN interface to block advertising domains. The app UI is currently in Chinese.
 
-The current version is **0.5.8**. DNS filtering covers all apps and browsers by default. Optional accessibility rules attempt to dismiss explicitly identified ads, with additional splash compatibility for selected apps. Enable accessibility separately in Android settings. Pausing DNS filtering does not disable it. China Mobile remains unreliable, and real-ad dismissal with the new Baidu Maps rule is unverified. This is not browser cosmetic filtering and does not remove every ad.
+The current version is **0.6.0**. DNS filtering covers all apps and browsers by default. Optional accessibility rules attempt to dismiss explicitly identified ads, with additional splash compatibility for selected apps. Enable accessibility separately in Android settings. Pausing DNS filtering does not disable it. China Mobile remains unreliable, and real-ad dismissal with the new Baidu Maps rule is unverified. This is not browser cosmetic filtering and does not remove every ad.
 
 Real-ad skipping remains unverified: an initial Ctrip cached ad was not skipped. After changing node access flags, subsequent launches did not display that ad, so no successful automatic click has been observed. The counter records click requests, not confirmed skips. This source also fixes duplicate-start status and adds startup timeout recovery; four pause/resume cycles, duplicate start, timeout recovery, and idle-wait checks passed on a Mi10 running Android 13. All-day battery use remains unmeasured.
 
 ## Download
 
-[Latest release](https://github.com/dskiiii/QuietStart/releases/latest) · [0.5.8 APK](https://github.com/dskiiii/QuietStart/releases/download/v0.5.8/QuietStart-0.5.8.apk)
+[Latest release](https://github.com/dskiiii/QuietStart/releases/latest) · [0.6.0 APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.0/QuietStart-0.6.0.apk)
 
 Install the APK, tap “开启过滤” (Start filtering), approve the system VPN prompt, and wait for “过滤运行中” (Filtering). Tap “收起” (Hide) to close the page while filtering continues. The app is excluded from recent tasks; its launcher icon remains available.
 

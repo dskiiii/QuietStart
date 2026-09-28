@@ -21,9 +21,17 @@ public final class Rules {
     public static String normalize(String name) {
         String value = name.trim().toLowerCase(Locale.ROOT);
         if (value.endsWith(".")) value = value.substring(0, value.length()-1);
-        value = IDN.toASCII(value, IDN.USE_STD3_ASCII_RULES);
+        boolean ascii=true;
+        for(int i=0;i<value.length();i++)if(value.charAt(i)>127){ascii=false;break;}
+        if(!ascii)value = IDN.toASCII(value, IDN.USE_STD3_ASCII_RULES);
         if (value.length() > 253 || !value.contains(".")) throw new IllegalArgumentException("请输入完整域名：" + name);
-        for (String label : value.split("\\.", -1)) if (label.isEmpty() || label.length() > 63) throw new IllegalArgumentException("无效域名：" + name);
+        for (String label : value.split("\\.", -1)) {
+            if (label.isEmpty() || label.length() > 63 || label.startsWith("-") || label.endsWith("-")) throw new IllegalArgumentException("无效域名：" + name);
+            for(int i=0;i<label.length();i++) {
+                char c=label.charAt(i);
+                if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-'))throw new IllegalArgumentException("无效域名："+name);
+            }
+        }
         return value;
     }
     private static boolean matches(Set<String> set, String name) {

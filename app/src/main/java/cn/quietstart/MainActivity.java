@@ -110,6 +110,7 @@ public final class MainActivity extends Activity {
         fullRules.setOnCheckedChangeListener((v,on)->{FilterVpnService.prefs(this).edit().putBoolean("full_rules",on).apply();reloadRules();});
         label("完整库随安装包提供，覆盖多个应用共用的广告平台；可一键更新，无需每次重新安装。若正常功能受影响，可关闭此开关切回精简规则，或加入白名单。",13,false);
         button("从 GitHub 更新完整规则",this::updateSubscription,false);
+        button("导入屏蔽规则 / 自定义订阅",this::importSettings,false);
         }
         if("diagnostics".equals(page)) {
         gap(16);label("问题排查",20,true);
@@ -138,7 +139,7 @@ public final class MainActivity extends Activity {
         label("在系统设置中允许静启后台自启动，将省电策略设为无限制。VPN 设置若提供“始终开启 VPN”可启用；请勿开启“阻止不使用 VPN 的连接”，本软件只接管 DNS，这个选项可能导致断网。菜单名称以你的澎湃 OS 版本为准。",13,false);
         }
         if("about".equals(page)) {
-        label("静启 0.5.8",24,true);
+        label("静启 0.6.0",24,true);
         gap(16); label("使用前请了解",20,true);
         label("• 首次开启需要系统 VPN 授权；已有 VPN 会被替换。\n• 会隐藏最近任务卡片，系统仍可显示 VPN 标识、通知和运行服务。清理、强行停止或系统省电仍可能终止过滤。\n• 广告加载成功或已有缓存时，摇一摇仍可能触发。本软件不能禁用其他应用的传感器，也不保证三个应用所有版本都有效。\n• 自带加密 DNS、直连 IP、共享业务域名的广告可能绕过。第一版支持系统 UDP DNS，暂不支持客户端直接使用 TCP DNS。\n• 普通网络连接不经过代理。未拦截域名交给阿里公共 DNS（223.5.5.5），失败后尝试腾讯公共 DNS（119.29.29.29），使用普通 DNS 查询；本软件没有上传日志或统计功能。",13,false);
         button("规则来源与许可",()->{try{message("anti-AD · MIT License","默认使用 anti-AD 完整域名库，另保留精简兼容模式。点击更新才会通过 HTTPS 下载公开规则，不上传诊断记录。\nhttps://github.com/privacy-protection-tools/anti-AD\n\n"+new String(getAssets().open("ANTI-AD-LICENSE.txt").readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));}catch(Exception e){message("错误",e.getMessage());}},false);
@@ -180,6 +181,13 @@ public final class MainActivity extends Activity {
     private void requestVpn() {Intent intent=VpnService.prepare(this); if(intent!=null) startActivityForResult(intent,10); else launchService();}
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(request==12&&result==RESULT_OK&&data!=null&&data.getData()!=null){
+            Uri uri=data.getData();
+            runImport(()->{try(java.io.InputStream in=getContentResolver().openInputStream(uri)){
+                if(in==null)throw new java.io.IOException("无法读取文件");
+                return ImportedRules.parse(Subscription.readBounded(in,ImportedRules.LIMIT));
+            }},"");
+        }
         if(request==10){
             if(result==RESULT_OK)launchService();
             else {FilterVpnService.starting=false;FilterVpnService.status="未授权 VPN，过滤未开启";refresh();}
@@ -269,6 +277,51 @@ public final class MainActivity extends Activity {
             finally {RuleRepository.updating.set(false);}
             String report=result;runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())message("规则更新",report);});
         },"QuietStart-Subscription").start();
+    }
+    private void importSettings() {
+        LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(20),dp(8),dp(20),dp(8));
+        TextView description=new TextView(this);
+        description.setText("支持 UTF-8 纯域名、hosts 和 AdGuard 整域规则，最多 10 MB / 50 万条。每次导入替换上次导入的规则，与内置库、额外拦截合并，白名单优先。仅手动更新。\n复杂例外、脚本、路径规则不能转换；有跳过项时需确认。FilterFusion 请使用 DNS 版本。\n最近导入："+FilterVpnService.prefs(this).getString("import_report","尚未导入"));panel.addView(description);
+        Switch enabled=new Switch(this);enabled.setText("启用导入的规则");enabled.setChecked(FilterVpnService.prefs(this).getBoolean("import_enabled",true));
+        enabled.setOnCheckedChangeListener((v,on)->{FilterVpnService.prefs(this).edit().putBoolean("import_enabled",on).apply();reloadRules();});panel.addView(enabled);
+        EditText address=new EditText(this);address.setSingleLine(true);address.setHint("HTTPS 规则文件直链");address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        address.setText(FilterVpnService.prefs(this).getString("import_url",""));panel.addView(address);
+        Button example=new Button(this);example.setText("填入 FilterFusion DNS 地址");example.setOnClickListener(v->address.setText("https://cdn.jsdelivr.net/gh/Chaniug/FilterFusion@main/dist/dns-blocklist.txt"));panel.addView(example);
+        ScrollView scroll=new ScrollView(this);scroll.addView(panel);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("导入屏蔽规则").setView(scroll).setNegativeButton("关闭",null)
+            .setNeutralButton("选择本地文件",(d,w)->{
+                try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),12);}
+                catch(ActivityNotFoundException e){message("无法选择文件","系统没有可用的文件选择器");}
+            }).setPositiveButton("下载 / 更新",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String url=address.getText().toString().trim();
+            if(!url.startsWith("https://")){address.setError("请填写 HTTPS 规则直链");return;}
+            runImport(()->ImportRepository.download(url),url);dialog.dismiss();
+        }));dialog.show();
+    }
+    private interface ImportSource { ImportedRules.Parsed read() throws Exception; }
+    private void runImport(ImportSource source,String url) { runImport(source,url,false); }
+    private void runImport(ImportSource source,String url,boolean confirmed) {
+        if(!ImportRepository.busy.compareAndSet(false,true)){message("正在导入","请等待当前导入结束");return;}
+        Context app=getApplicationContext();
+        Toast.makeText(this,"正在读取和验证规则",Toast.LENGTH_LONG).show();
+        new Thread(()->{
+            String report;
+            try {
+                ImportedRules.Parsed parsed=source.read();
+                if(parsed.skipped()>0&&!confirmed){
+                    runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setTitle("部分规则无法转换").setMessage("可导入 "+parsed.count()+" 条屏蔽域名；跳过 "+parsed.skipped()+" 条复杂规则（可能包含放行例外）。忽略例外可能误拦，效果与原规则不同。是否继续？").setNegativeButton("取消",null).setPositiveButton("仍然导入",(d,w)->runImport(()->parsed,url,true)).show();});
+                    return;
+                }
+                ImportRepository.save(app,parsed.text());
+                report=parsed.count()+" 条，跳过 "+parsed.skipped()+" 条 · "+new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.ROOT).format(new Date());
+                FilterVpnService.prefs(app).edit().putString("import_url",url).putString("import_report",report).putBoolean("import_enabled",true).apply();
+                report="已导入并启用 "+report+"\n已替换上次导入的规则。过滤运行时会重新加载；已有广告缓存不会清除。";
+                if(FilterVpnService.running||FilterVpnService.starting)app.startService(new Intent(app,FilterVpnService.class).setAction(FilterVpnService.RELOAD));
+            }catch(Exception e){report="导入未完成："+e.getMessage();}
+            finally{ImportRepository.busy.set(false);}
+            String result=report;runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())message("规则导入",result);});
+        },"QuietStart-Import").start();
     }
     private void showEvents() {
         List<FilterVpnService.Event> list=FilterVpnService.events();

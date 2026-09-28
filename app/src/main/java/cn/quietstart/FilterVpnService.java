@@ -129,7 +129,16 @@ public final class FilterVpnService extends VpnService {
             base=full.text()+base;
             info="anti-AD 完整库 · "+full.version()+" · 跳过无效行 "+full.rejected();
         }
-        Rules next=new Rules(base,p.getString("block",""),p.getString("allow",""));
+        String importedAllow="";
+        if(p.getBoolean("import_enabled",true)) {
+            String imported=ImportRepository.current(this);
+            if(!imported.isEmpty()){
+                ImportedRules.Parsed parsed=ImportedRules.parse(imported);
+                StringBuilder blocks=new StringBuilder();for(String line:parsed.text().split("\n"))if(!line.startsWith("@@"))blocks.append(line).append('\n');
+                base=base+"\n"+blocks;importedAllow=parsed.allowed();info+=" · 含导入规则";
+            }
+        }
+        Rules next=new Rules(base,p.getString("block",""),p.getString("allow","")+"\n"+importedAllow);
         if(!closed&&session==generation){rules=next;ruleInfo=info+" · "+next.size()+" 条";}
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId) {

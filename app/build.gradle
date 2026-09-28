@@ -6,8 +6,8 @@ android {
         applicationId 'cn.quietstart'
         minSdk 33
         targetSdk 35
-        versionCode 19
-        versionName '0.5.8'
+        versionCode 20
+        versionName '0.6.0'
         testInstrumentationRunner 'cn.quietstart.IdleWaitInstrumentation'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

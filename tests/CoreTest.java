@@ -18,6 +18,21 @@ public class CoreTest {
         System.arraycopy(dns,0,b,28,dns.length);DnsPacket.put16(b,10,DnsPacket.checksum(b,0,20));return b;
     }
     public static void main(String[] args) throws Exception {
+        for(String valid:new String[]{"EXAMPLE.COM.","a-b.example.com","例子.中国"})check(Rules.normalize(valid).equals(java.net.IDN.toASCII(valid.toLowerCase(java.util.Locale.ROOT).replaceFirst("\\.$",""),java.net.IDN.USE_STD3_ASCII_RULES)),"ASCII fast path retains IDN normalization");
+        for(String invalid:new String[]{"-ad.example.com","ad-.example.com","ad_x.example.com","ad/example.com","a..com"}){
+            boolean failed=false;try{Rules.normalize(invalid);}catch(IllegalArgumentException e){failed=true;}check(failed,"ASCII fast path rejects invalid domain");
+        }
+        ImportedRules.Parsed imported=ImportedRules.parse("\uFEFF# domains\nads.example.com\n0.0.0.0 ads.example.com other.example.com # note\n||third.example.com^\n@@||safe.third.example.com^\n@@||complex.example.com^$important\n");
+        check(imported.count()==3,"import deduplicates hosts and domains");
+        check(imported.skipped()==1,"complex exception is reported");
+        check(imported.allowed().equals("safe.third.example.com"),"domain exceptions preserved");
+        check(ImportedRules.parse(imported.text()).count()==3,"saved imports round trip");
+        for(String invalid:new String[]{"", "# empty", "<html>error</html>","https://example.com/ad", "0.0.0.0", "192.168.1.1"}) {
+            boolean rejected=false;try{ImportedRules.parse(invalid);}catch(IOException e){rejected=true;}
+            check(rejected,"invalid import rejected: "+invalid);
+        }
+        boolean tooLarge=false;try{Subscription.readBounded(new ByteArrayInputStream(new byte[11]),10);}catch(IOException e){tooLarge=true;}
+        check(tooLarge,"import read size bounded");
         long subscriptionStart=System.nanoTime();
         String fullSource=java.nio.file.Files.readString(java.nio.file.Path.of("app/src/main/assets/anti-ad-full.txt"));
         Subscription.Parsed subscription=Subscription.parse(fullSource);
