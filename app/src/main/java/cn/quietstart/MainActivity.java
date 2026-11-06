@@ -15,10 +15,12 @@ import java.util.*;
 
 public final class MainActivity extends Activity {
     private LinearLayout body;
-    private TextView status,counts,network,ruleStatus,skipStatus;
+    private TextView status,counts,network,ruleStatus,skipStatus,skipHelp;
     private Switch allApps;
     private Button mainToggle;
     private String page="home";
+    private boolean vpnRequestPending;
+    private long vpnRequestEpoch;
     private final BroadcastReceiver stateReceiver=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){refresh();}
     };
@@ -29,6 +31,8 @@ public final class MainActivity extends Activity {
     private int dp(int n) { return (int)(n*getResources().getDisplayMetrics().density+.5f); }
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        vpnRequestPending=b!=null&&b.getBoolean("vpn_request_pending",false);
+        vpnRequestEpoch=b==null?0:b.getLong("vpn_request_epoch",0);
         getWindow().setStatusBarColor(Color.rgb(243,247,246)); getWindow().setNavigationBarColor(Color.rgb(243,247,246));
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true);
@@ -41,18 +45,18 @@ public final class MainActivity extends Activity {
         showPage(b==null?"home":b.getString("page","home"));
     }
     private void showPage(String destination) {
-        page=destination;body.removeAllViews();targets.clear();allApps=null;ruleStatus=null;mainToggle=null;skipStatus=null;
+        page=destination;body.removeAllViews();targets.clear();allApps=null;ruleStatus=null;mainToggle=null;skipStatus=null;skipHelp=null;
         ((ScrollView)body.getParent()).scrollTo(0,0);
         network=new TextView(this);
         if("home".equals(page)) {
         label("静启",34,true); label("让应用和浏览更安静",17,false);
         gap(18); status=label("",22,true); counts=label("",14,false);
-        label("开启后，收起页面即可继续过滤。",14,false);
+        label("开启一次过滤即可。Clash 使用 VPN 时自动让出，退出后自动恢复。",14,false);
         skipStatus=label("",13,false);
         gap(10);
         mainToggle=button("开启过滤",()->{
             if(FilterVpnService.stopping)return;
-            if(FilterVpnService.running||FilterVpnService.starting){FilterVpnService.pause(this);refresh();}
+            if(!FilterVpnService.needsConsent&&(FilterVpnService.running||FilterVpnService.starting||FilterVpnService.waitingForVpn)){vpnRequestPending=false;FilterVpnService.pause(this);refresh();}
             else startFilter();
         },true);
         button("收起",this::finishAndRemoveTask,false);
@@ -66,10 +70,24 @@ public final class MainActivity extends Activity {
             button("过滤范围",()->showPage("scope"),false);
             button("规则与白名单",()->showPage("rules"),false);
             button("自动关闭广告",()->showPage("skip"),false);
+            button("Clash 自动切换说明",()->showPage("clash"),false);
             button("后台运行",()->showPage("background"),false);
             button("问题排查",()->showPage("diagnostics"),false);
             button("关于静启",()->showPage("about"),false);
             refresh();return;
+        }
+        if("clash".equals(page)) {
+            label("Clash 自动切换",24,true);
+            label("无需切换模式。首页开启静启过滤后，Clash Meta、FlClash 等其他 VPN 运行时自动让出；检测到其退出，等待约 2 秒确认后恢复。手动暂停静启会同时停止自动恢复。",14,false);
+            label("如果系统曾为静启开启“始终开启 VPN”，请关闭，避免系统强制接管；同时关闭静启的“阻止不使用 VPN 的连接”。",13,false);
+            button("打开系统 VPN 设置",()->open(new Intent(Settings.ACTION_VPN_SETTINGS)),false);
+            label("静启等待时保留一条运行通知，通过系统网络事件接续，不每秒检查。请不要在 Clash 的应用访问控制中排除静启，否则系统可能不向静启提供 VPN 状态，自动切换无法保证。",13,false);
+            label("Clash 使用期间，静启域名过滤暂停；想在这段时间过滤域名广告，仍需为 Clash 配置广告规则。静启不会自动导入规则或启动 Clash。",13,false);
+            label("自动关闭广告独立运行，仍需无障碍连接正常。通常沿用已有 VPN 授权；仅系统确实要求确认时，通知和首页提示处理，不会在后台反复弹窗。",13,false);
+            button("自动关闭广告设置",()->showPage("skip"),false);
+            button("重新尝试开启过滤",this::startFilter,false);
+            button("暂停过滤及自动恢复",()->{vpnRequestPending=false;FilterVpnService.pause(this);refresh();},false);
+            label("被系统强行停止或清理后，自动恢复可能中断。此功能不修复无障碍掉线，也不保证全部广告消失。",13,false);
         }
         if("skip".equals(page)) {
             label("自动关闭广告",24,true);
@@ -81,11 +99,16 @@ public final class MainActivity extends Activity {
             Switch ctripTap=new Switch(this);ctripTap.setText("携程开屏兼容点击");ctripTap.setChecked(FilterVpnService.prefs(this).getBoolean("ctrip_tap",true));
             ctripTap.setOnCheckedChangeListener((v,on)->FilterVpnService.prefs(this).edit().putBoolean("ctrip_tap",on).apply());body.addView(ctripTap);
             label("携程未提供可点击控件时，仅在实时识别的右上角“跳过广告”文字处轻点；不使用固定坐标。",13,false);
-            label("中国移动开屏：只在右上角倒计时跳过按钮和明确广告标记同时存在时轻点。",13,false);
+            label("中国移动开屏：核验专用跳过按钮和广告布局后直接点击；其他布局仍要求倒计时和明确广告标记。",13,false);
+            label("京东开屏：刚进入主页面时，尝试点击右上角的“跳过”或倒计时跳过按钮。不同版本及广告样式可能无法识别。",13,false);
+            label("百度地图开屏：识别专用按钮，以及刚启动时右上角的“跳过”文字。本机保留最近识别与点击结果，不保存截图、位置或页面文字；未发现按钮不代表广告已被过滤。",13,false);
+            label("小米音乐：核验开屏广告后点击独立的“跳过”；弹窗开关开启时，也尝试关闭启动时的活动弹窗和会员续费提示。",13,false);
             button("自动关闭排除名单",this::editSkipExclusions,false);
             skipStatus=label("",15,true);
+            skipHelp=label("",13,false);
             button("打开系统无障碍设置",()->open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)),false);
-            label("打开上方开关后，在系统无障碍设置启用“静启 · 自动关闭广告”。无需逐个添加应用；不同应用和版本不保证成功。",13,false);
+            button("检查后台运行设置",()->showPage("background"),false);
+            label("首次使用需在系统无障碍设置启用“静启 · 自动关闭广告”。日常暂停请用本页开关，不需要反复关闭系统授权。无需逐个添加应用；不同应用和版本不保证成功。",13,false);
             label("与 VPN 过滤独立开关，无需 VPN 也可跳过。暂停过滤只停止域名过滤；关闭本页开关立即停止自动点击。广告可能短暂闪现。没有明确标识的促销弹窗、图片内的关闭按钮可能无法识别；不会自动清除网页广告空白。",13,false);
         }
         if("scope".equals(page)) {
@@ -136,10 +159,11 @@ public final class MainActivity extends Activity {
         button("打开 VPN 设置",()->open(new Intent("android.settings.VPN_SETTINGS")),false);
         button("打开电池优化设置",()->open(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)),false);
         button("打开应用信息 / 自启动设置",()->open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))),false);
-        label("在系统设置中允许静启后台自启动，将省电策略设为无限制。VPN 设置若提供“始终开启 VPN”可启用；请勿开启“阻止不使用 VPN 的连接”，本软件只接管 DNS，这个选项可能导致断网。菜单名称以你的澎湃 OS 版本为准。",13,false);
+        label("在系统设置中允许静启后台自启动，将省电策略设为无限制。需要配合 Clash 时，关闭静启的“始终开启 VPN”。仅长期单独使用静启域名过滤时才考虑开启它。请勿开启“阻止不使用 VPN 的连接”，本软件只接管 DNS，这个选项可能导致断网。菜单名称以系统版本为准。",13,false);
+        label("无障碍服务由系统连接。若清理后台或重启后失效，先查看“自动关闭广告”的状态：系统开关已开启但未连接，不等于需要重新授权；先检查自启动和省电设置，再返回静启查看。若系统开关确实关闭，需在系统设置手动开启。后台设置不能保证所有系统版本都能恢复服务。",13,false);
         }
         if("about".equals(page)) {
-        label("静启 0.6.0",24,true);
+        label("静启 0.6.3",24,true);
         gap(16); label("使用前请了解",20,true);
         label("• 首次开启需要系统 VPN 授权；已有 VPN 会被替换。\n• 会隐藏最近任务卡片，系统仍可显示 VPN 标识、通知和运行服务。清理、强行停止或系统省电仍可能终止过滤。\n• 广告加载成功或已有缓存时，摇一摇仍可能触发。本软件不能禁用其他应用的传感器，也不保证三个应用所有版本都有效。\n• 自带加密 DNS、直连 IP、共享业务域名的广告可能绕过。第一版支持系统 UDP DNS，暂不支持客户端直接使用 TCP DNS。\n• 普通网络连接不经过代理。未拦截域名交给阿里公共 DNS（223.5.5.5），失败后尝试腾讯公共 DNS（119.29.29.29），使用普通 DNS 查询；本软件没有上传日志或统计功能。",13,false);
         button("规则来源与许可",()->{try{message("anti-AD · MIT License","默认使用 anti-AD 完整域名库，另保留精简兼容模式。点击更新才会通过 HTTPS 下载公开规则，不上传诊断记录。\nhttps://github.com/privacy-protection-tools/anti-AD\n\n"+new String(getAssets().open("ANTI-AD-LICENSE.txt").readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));}catch(Exception e){message("错误",e.getMessage());}},false);
@@ -173,12 +197,23 @@ public final class MainActivity extends Activity {
         boolean any=FilterVpnService.prefs(this).getBoolean("all_apps",true);
         for(String pkg:FilterVpnService.PACKAGES) if(installed(pkg)&&FilterVpnService.prefs(this).getBoolean(pkg,true)) any=true;
         if(!any) {message("没有目标应用","请安装并勾选小红书、网易云音乐或百度地图中的至少一个。");return;}
+        vpnRequestPending=true;
+        vpnRequestEpoch=FilterVpnService.prefs(this).getLong("pause_epoch",0);
         if(checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},11);
         else requestVpn();
     }
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results) {super.onRequestPermissionsResult(request,permissions,results); if(request==11) requestVpn();}
-    private void requestVpn() {Intent intent=VpnService.prepare(this); if(intent!=null) startActivityForResult(intent,10); else launchService();}
+    private void requestVpn() {
+        if(!validVpnRequest())return;
+        try {
+            // prepare() itself can take ownership from a previously consented VPN.
+            // Observe first; when another VPN is present start only the waiting session.
+            if(VpnMonitor.otherVpnPresent(this)){launchService();return;}
+            Intent intent=VpnService.prepare(this);
+            if(intent!=null)startActivityForResult(intent,10);else launchService();
+        }catch(RuntimeException error){vpnRequestPending=false;message("暂时无法开启",error.getClass().getSimpleName());}
+    }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
         if(request==12&&result==RESULT_OK&&data!=null&&data.getData()!=null){
@@ -188,27 +223,56 @@ public final class MainActivity extends Activity {
                 return ImportedRules.parse(Subscription.readBounded(in,ImportedRules.LIMIT));
             }},"");
         }
-        if(request==10){
+        if(request==10&&validVpnRequest()){
             if(result==RESULT_OK)launchService();
-            else {FilterVpnService.starting=false;FilterVpnService.status="未授权 VPN，过滤未开启";refresh();}
+            else {vpnRequestPending=false;FilterVpnService.pause(this);FilterVpnService.status="未授权 VPN，过滤未开启";refresh();}
         }
     }
     private void launchService() {
+        if(!validVpnRequest())return;
+        vpnRequestPending=false;
         try {
             FilterVpnService.start(this);refresh();
         }catch(Exception e){FilterVpnService.starting=false;FilterVpnService.status="启动失败";refresh();message("启动失败",e.getMessage());}
     }
+    private boolean validVpnRequest(){
+        if(vpnRequestEpoch!=FilterVpnService.prefs(this).getLong("pause_epoch",0))vpnRequestPending=false;
+        return vpnRequestPending;
+    }
     private void refresh() {
         if(status==null)return;
-        if(skipStatus!=null)skipStatus.setText(getString(R.string.skip_state,!AdSkipService.enabled(this)?"关闭":AdSkipService.connected?"已连接":"等待开启系统无障碍服务","skip".equals(page)?getString(R.string.skip_count,FilterVpnService.prefs(this).getLong("skip_clicks",0)):""));
+        if(skipStatus!=null){
+            AccessibilityStatus.State access=AccessibilityStatus.read(this);
+            skipStatus.setText(getString(R.string.skip_state,AccessibilityStatus.label(access),"skip".equals(page)?getString(R.string.skip_count,FilterVpnService.prefs(this).getLong("skip_clicks",0)):""));
+            if(skipHelp!=null){
+                String help;
+                switch(access){
+                    case DISCONNECTED: help="系统仍保留静启的无障碍开关，目前不能自动点击。无需先关闭再授权；请检查后台自启动和省电限制，返回后观察是否连接。持续不恢复时需进一步检查系统状态。";break;
+                    case NOT_ENABLED: help="系统服务列表中未开启静启。请在下方系统设置中开启；如果每次清理或重启后都变成此状态，需要检查系统为何关闭它。";break;
+                    case CONNECTED: help="服务已连接，无需重复授权。收起页面后仍可工作；连接正常不代表每个广告都能识别。";break;
+                    case OFF: help="只暂停自动点击，不撤销系统无障碍开关。下次可直接打开本页开关，再查看连接状态。";break;
+                    default: help="无法确认系统是否保留开关，请打开系统设置查看；不要仅凭未连接就重复关闭和授权。";
+                }
+                skipHelp.setText(help);
+            }
+        }
         if(skipStatus!=null&&"skip".equals(page))skipStatus.append("\n本次界面事件："+AdSkipService.received+"，扫描："+AdSkipService.scans+"\n"+AdSkipService.outcome+"\n"+AdSkipService.lastPackage);
         if(skipStatus!=null&&"skip".equals(page))skipStatus.append("\n最近携程触摸："+FilterVpnService.prefs(this).getString("ctrip_tap_status","尚未识别到跳过按钮"));
+        if(skipStatus!=null&&"skip".equals(page)){
+            android.content.SharedPreferences p=FilterVpnService.prefs(this);
+            for(String key:new String[]{"baidu_last_scan","baidu_last_candidate","baidu_last_click"}){
+                String label=key.equals("baidu_last_scan")?"最近启动检查":key.equals("baidu_last_candidate")?"最近候选按钮":"最近点击";
+                long time=p.getLong(key+"_time",0);
+                skipStatus.append("\n百度地图"+label+"："+(time==0?"尚无记录":new java.text.SimpleDateFormat("MM-dd HH:mm:ss",java.util.Locale.CHINA).format(new java.util.Date(time))+" "+p.getString(key,"")));
+            }
+        }
         status.setText(FilterVpnService.status);
         if(mainToggle!=null){
-            mainToggle.setText(FilterVpnService.stopping?"正在暂停…":FilterVpnService.starting?"取消启动":FilterVpnService.running?"暂停过滤":"开启过滤");
+            mainToggle.setText(FilterVpnService.needsConsent?"开启过滤（需授权）":FilterVpnService.stopping?"正在暂停…":FilterVpnService.starting?"取消启动":FilterVpnService.waitingForVpn?"暂停自动恢复":FilterVpnService.running?"暂停过滤":"开启过滤");
             mainToggle.setEnabled(!FilterVpnService.stopping);
         }
         counts.setText("home".equals(page)?getString(R.string.home_counts,FilterVpnService.blocked.get()):getString(R.string.request_counts,FilterVpnService.blocked.get(),FilterVpnService.passed.get(),FilterVpnService.failed.get(),FilterVpnService.running?"范围："+FilterVpnService.scope:"开启后可收起页面，桌面图标始终保留"));
+        if(FilterVpnService.waitingForVpn)counts.setText("静启域名过滤暂未运行；自动关闭广告的状态见下方。");
         boolean all=FilterVpnService.prefs(this).getBoolean("all_apps",true);
         for(Switch sw:targets) sw.setEnabled(Boolean.TRUE.equals(sw.getTag())&&!FilterVpnService.running&&!FilterVpnService.starting&&!all);
         if(allApps!=null)allApps.setEnabled(!FilterVpnService.running&&!FilterVpnService.starting);
@@ -339,5 +403,5 @@ public final class MainActivity extends Activity {
     @Override protected void onResume(){super.onResume();handler.removeCallbacks(tick);refresh();handler.post(tick);}
     @Override protected void onPause(){handler.removeCallbacks(tick);super.onPause();}
     @Override public void onBackPressed(){if("home".equals(page))finishAndRemoveTask();else showPage("settings".equals(page)?"home":"settings");}
-    @Override protected void onSaveInstanceState(Bundle state){state.putString("page",page);super.onSaveInstanceState(state);}
+    @Override protected void onSaveInstanceState(Bundle state){state.putString("page",page);state.putBoolean("vpn_request_pending",vpnRequestPending);state.putLong("vpn_request_epoch",vpnRequestEpoch);super.onSaveInstanceState(state);}
 }

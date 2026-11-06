@@ -1,6 +1,8 @@
-# Clash Meta for Android 去广告整合
+# Clash Meta for Android / FlClash 去广告整合
 
 本目录提供配置合并工具，需使用自己的 Clash 配置生成结果，不包含节点配置。
+
+静启、Clash Meta、FlClash 在安卓上都会使用系统 VPN 通道，同一用户下只能有一个活动 VPN。推荐让正在使用的 Clash 客户端承担代理和域名广告规则，静启仅保留可选的无障碍跳广告。两种 Clash 客户端的实际导入、覆写界面以安装版本为准；本轮未连接手机，不宣称已经完成配置或验收。
 
 需要手机正在使用的完整 YAML 导出文件，才能保留节点、策略组、DNS 和分流规则。订阅链接不是必需的。配置可能包含节点凭据，合并工具只在本机解析，不上传、不打印正文、不覆盖原文件。最终文件同样应当私下保存。
 
@@ -21,12 +23,14 @@ python merge_config.py 原配置.yaml 新配置-离线去广告.yaml --offline
 ## 手机上切换
 
 1. 保留原配置作为回退，导入合并后的文件为新配置。
-2. 暂停静启，关闭静启的“始终开启 VPN”（如有）。如果此前试过私人 DNS，将其恢复到原设置。
-3. Clash 选择新配置，覆写中的运行模式保持规则模式或不修改；启动 Clash 并授予 VPN 权限。
-4. 访问控制要包含希望过滤的应用；被排除的应用不会走 Clash 广告规则。
+2. 静启 0.6.3 开启一次过滤后会自动让出和恢复，无需来回切模式。0.6.2 仍需手动配合模式，更早版本先暂停域名过滤。系统中关闭静启的“始终开启 VPN”和“阻止不使用 VPN 的连接”（如有）。如果此前试过私人 DNS，将其恢复到原设置。
+3. Clash Meta 或 FlClash 中选择一个，导入并选择合并后的完整配置；覆写中的运行模式保持规则模式或不修改，启动所选客户端并授予 VPN 权限。不要将本目录的合并片段直接当作完整配置导入。
+4. 访问控制要包含希望过滤的应用；被排除的应用不会走 Clash 广告规则。不要排除静启，以便静启收到该 VPN 的系统网络状态事件。
 5. 强行停止目标应用再打开；在 Clash 日志/连接中检查广告域名是否命中 REJECT，并测试音乐播放、地图定位等正常功能。
 
 由文件导入的是配置快照。原节点订阅日后变动，可能需要重新合并；在线广告 rule-provider 的定期更新不能代替节点订阅更新。不能声称一次导入就永久跟随机场订阅。
+
+静启 0.6.3 的自动切换本身不导入规则、不自动授权无障碍、不启动 Clash。规则合并不是自动切换的前提，仅用于 Clash 占用 VPN 期间的域名过滤。原先开启的自动跳广告功能可在无障碍连接正常时继续工作；此前清理后台/重启后的掉线问题仍需单独排查。静启观察到其他 VPN 退出后约 2 秒尝试恢复；系统要求确认时提示处理，手动暂停静启后不恢复。此处描述代码行为，尚未实机验收。
 
 此方案不需额外购买广告服务，但 Clash 原有节点费用按你已有服务处理。Clash 自身的系统 VPN 图标仍然存在。DNS 域名过滤与 Clash 连接规则拒绝不是完全相同的处理路径，实际客户端效果仍须复测。
 
@@ -34,6 +38,8 @@ python merge_config.py 原配置.yaml 新配置-离线去广告.yaml --offline
 
 - https://wiki.metacubex.one/config/rule-providers/
 - https://wiki.metacubex.one/config/rules/
+- https://developer.android.com/develop/connectivity/vpn
+- https://github.com/chen08209/FlClash
 - https://github.com/MetaCubeX/ClashMetaForAndroid/blob/main/core/src/main/java/com/github/kr328/clash/core/model/ConfigurationOverride.kt
 - https://github.com/MetaCubeX/ClashMetaForAndroid/blob/main/design/src/main/java/com/github/kr328/clash/design/OverrideSettingsDesign.kt
 - https://github.com/privacy-protection-tools/anti-AD

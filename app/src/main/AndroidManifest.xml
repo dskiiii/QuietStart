@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <queries>
         <package android:name="com.xingin.xhs" />
@@ -13,10 +13,10 @@
         <activity android:name=".MainActivity" android:exported="true" android:excludeFromRecents="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
-        <!-- Active VPNs qualify for systemExempted without alarm permissions. AGP 8.6 lint
-             only models the alarm eligibility path. See Android foreground service types,
-             System exempted: https://developer.android.com/develop/background-work/services/fgs/service-types -->
-        <service android:name=".FilterVpnService" android:permission="android.permission.BIND_VPN_SERVICE" android:exported="true" android:stopWithTask="false" android:foregroundServiceType="systemExempted" tools:ignore="ForegroundServicePermission">
+        <!-- Keep the user-started session visible while another VPN owns the tunnel.
+             Waiting only observes network callbacks; it does not intercept traffic. -->
+        <service android:name=".FilterVpnService" android:permission="android.permission.BIND_VPN_SERVICE" android:exported="true" android:stopWithTask="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started local DNS filtering session with event-driven handoff to other VPN apps; while yielded, keep a visible notification and resume only after the observed VPN disconnects. User pause stops the session." />
             <intent-filter><action android:name="android.net.VpnService" /></intent-filter>
             <meta-data android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON" android:value="true" />
         </service>

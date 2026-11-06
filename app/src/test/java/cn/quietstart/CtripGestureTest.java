@@ -74,6 +74,75 @@ public class CtripGestureTest {
     private void drain(){Shadows.shadowOf(Looper.getMainLooper()).idle();}
     private void noGesture(){verify(service,never()).dispatchGesture(any(),any(),any());}
 
+    private void window(String pkg,String cls) throws Exception {
+        android.view.accessibility.AccessibilityEvent e=android.view.accessibility.AccessibilityEvent.obtain(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
+        e.setPackageName(pkg);e.setClassName(cls);
+        Method m=AdSkipService.class.getDeclaredMethod("trackWindow",android.view.accessibility.AccessibilityEvent.class,String.class);m.setAccessible(true);m.invoke(service,e,pkg);e.recycle();
+    }
+    private void jdSetup() throws Exception {
+        when(node.getPackageName()).thenReturn(SkipRules.JD);when(active.getPackageName()).thenReturn(SkipRules.JD);
+        when(node.getText()).thenReturn("跳过");when(node.isClickable()).thenReturn(true);when(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true);
+        when(active.findAccessibilityNodeInfosByText("跳过")).thenReturn(java.util.List.of(node));
+        nodes.when(()->AccessibilityNodeInfo.obtain(active)).thenReturn(active);
+        window(SkipRules.JD,"com.jingdong.app.mall.MainFrameActivity");
+    }
+    private boolean jdScan() throws Exception {
+        Method m=AdSkipService.class.getDeclaredMethod("findEntrySkip",AccessibilityNodeInfo.class,String.class);m.setAccessible(true);
+        return (boolean)m.invoke(service,active,SkipRules.JD);
+    }
+    @Test public void jdBareSkipOnEntryClicks() throws Exception {jdSetup();assertTrue(jdScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void jdMissingTextIndexTraversesOverlay() throws Exception {jdSetup();when(active.findAccessibilityNodeInfosByText("跳过")).thenReturn(java.util.List.of());when(active.getChildCount()).thenReturn(1);when(active.getChild(0)).thenReturn(node);assertTrue(jdScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);}
+    @Test public void jdSearchPageDoesNotClick() throws Exception {jdSetup();window(SkipRules.JD,"com.jd.lib.search.view.Activity.SearchActivity");assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdPaymentPageDoesNotClick() throws Exception {jdSetup();window(SkipRules.JD,"com.jd.PaymentActivity");assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdExpiredEntryDoesNotClick() throws Exception {jdSetup();org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(11));assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdRepeatedWindowDoesNotExtendEntry() throws Exception {jdSetup();org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(11));window(SkipRules.JD,"com.jingdong.app.mall.MainFrameActivity");assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdChangedLabelDoesNotClick() throws Exception {jdSetup();when(node.getText()).thenReturn("跳过","跳过登录");assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdWrongWindowDoesNotClick() throws Exception {jdSetup();when(active.getWindowId()).thenReturn(8);assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdLowerButtonDoesNotClick() throws Exception {jdSetup();liveBounds.set(850,1500,1000,1560);assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    @Test public void jdExcludedDoesNotClick() throws Exception {jdSetup();prefs.edit().putStringSet("skip_excluded",java.util.Set.of(SkipRules.JD)).commit();assertFalse(jdScan());verify(node,never()).performAction(anyInt());}
+    private void mapEntrySetup() throws Exception {
+        jdSetup();when(node.getPackageName()).thenReturn(SkipRules.BAIDU);when(active.getPackageName()).thenReturn(SkipRules.BAIDU);
+        window(SkipRules.BAIDU,"com.baidu.baidumaps.MapsActivity");
+    }
+    private boolean mapEntryScan() throws Exception {
+        Method m=AdSkipService.class.getDeclaredMethod("findEntrySkip",AccessibilityNodeInfo.class,String.class);m.setAccessible(true);
+        return (boolean)m.invoke(service,active,SkipRules.BAIDU);
+    }
+    @Test public void mapBareSkipOnEntryClicksWithoutFixedId() throws Exception {mapEntrySetup();assertTrue(mapEntryScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);assertTrue(prefs.getString("baidu_last_click","").contains("尚未确认"));noGesture();}
+    @Test public void mapCountdownOnWelcomeClicks() throws Exception {mapEntrySetup();window(SkipRules.BAIDU,"com.baidu.baidumaps.WelcomeScreen");when(node.getText()).thenReturn("跳过 3");assertTrue(mapEntryScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);}
+    @Test public void mapMissingTextIndexTraverses() throws Exception {mapEntrySetup();when(active.findAccessibilityNodeInfosByText("跳过")).thenReturn(java.util.List.of());when(active.getChildCount()).thenReturn(1);when(active.getChild(0)).thenReturn(node);assertTrue(mapEntryScan());}
+    @Test public void mapExpiredEntryDoesNotClick() throws Exception {mapEntrySetup();org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(11));assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapRoutePageDoesNotClick() throws Exception {mapEntrySetup();window(SkipRules.BAIDU,"com.baidu.baidumaps.RouteActivity");assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapChangedTextDoesNotClick() throws Exception {mapEntrySetup();when(node.getText()).thenReturn("跳过","跳过登录");assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapChangedWindowDoesNotClick() throws Exception {mapEntrySetup();when(active.getWindowId()).thenReturn(8);assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapBodyButtonDoesNotClick() throws Exception {mapEntrySetup();liveBounds.set(850,1500,1000,1560);assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapExcludedDoesNotClick() throws Exception {mapEntrySetup();prefs.edit().putStringSet("skip_excluded",java.util.Set.of(SkipRules.BAIDU)).commit();assertFalse(mapEntryScan());verify(node,never()).performAction(anyInt());}
+    @Test public void mapMissingCandidateDoesNotOverwriteLastClick() throws Exception {mapEntrySetup();assertTrue(mapEntryScan());String last=prefs.getString("baidu_last_click","");when(active.findAccessibilityNodeInfosByText("跳过")).thenReturn(java.util.List.of());assertFalse(mapEntryScan());assertEquals(last,prefs.getString("baidu_last_click",""));}
+    private AccessibilityNodeInfo cmccNativeSetup(){
+        String pkg=SkipRules.CMCC;
+        when(node.getPackageName()).thenReturn(pkg);when(active.getPackageName()).thenReturn(pkg);
+        when(node.getText()).thenReturn("3 跳过");when(node.getViewIdResourceName()).thenReturn(pkg+":id/video_time_skip");
+        when(node.isClickable()).thenReturn(true);when(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true);
+        when(active.findAccessibilityNodeInfosByViewId(pkg+":id/video_time_skip")).thenReturn(java.util.List.of(node));
+        AccessibilityNodeInfo parent=mock(AccessibilityNodeInfo.class),container=mock(AccessibilityNodeInfo.class);
+        when(node.getParent()).thenReturn(parent);when(parent.getParent()).thenReturn(container);
+        when(parent.getPackageName()).thenReturn(pkg);when(container.getPackageName()).thenReturn(pkg);
+        when(parent.isVisibleToUser()).thenReturn(true);when(container.isVisibleToUser()).thenReturn(true);
+        when(parent.getViewIdResourceName()).thenReturn(pkg+":id/ll_top_right");when(container.getViewIdResourceName()).thenReturn(pkg+":id/video_layout");
+        return parent;
+    }
+    private boolean cmccNativeScan() throws Exception {
+        Method m=AdSkipService.class.getDeclaredMethod("findCmccSkip",AccessibilityNodeInfo.class,String.class);m.setAccessible(true);
+        return (boolean)m.invoke(service,active,SkipRules.CMCC);
+    }
+    @Test public void cmccNativeSkipWorksWithoutTextAdMarker() throws Exception {cmccNativeSetup();assertTrue(cmccNativeScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void cmccNativeWrongContainerRejected() throws Exception {when(cmccNativeSetup().getViewIdResourceName()).thenReturn("other");assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeChangedIdRejected() throws Exception {cmccNativeSetup();when(node.getViewIdResourceName()).thenReturn(SkipRules.CMCC+":id/video_time_skip","other");assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeChangedTextRejected() throws Exception {cmccNativeSetup();when(node.getText()).thenReturn("3 跳过","跳过登录");assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeWrongWindowRejected() throws Exception {cmccNativeSetup();when(active.getWindowId()).thenReturn(8);assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeOversizedTargetRejected() throws Exception {cmccNativeSetup();liveBounds.set(0,0,1080,2340);assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeExcludedAppRejected() throws Exception {cmccNativeSetup();prefs.edit().putStringSet("skip_excluded",java.util.Set.of(SkipRules.CMCC)).commit();assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
+    @Test public void cmccNativeDisabledFeatureRejected() throws Exception {cmccNativeSetup();prefs.edit().putBoolean("skip_ads",false).commit();assertFalse(cmccNativeScan());verify(node,never()).performAction(anyInt());}
     private boolean enqueueCmcc(boolean markerVisible) throws Exception {
         when(node.getPackageName()).thenReturn(SkipRules.CMCC);
         when(node.getText()).thenReturn("2 跳过");
@@ -113,6 +182,73 @@ public class CtripGestureTest {
         doAnswer(i->{((Rect)i.getArgument(0)).set(780,141,835,193);return null;}).when(marker).getBoundsInScreen(any());
         when(active.findAccessibilityNodeInfosByText("广告")).thenReturn(java.util.List.of(marker));return marker;
     }
+    private AccessibilityNodeInfo musicPopupSetup(boolean renewal) throws Exception {
+        String pkg=SkipRules.MI_MUSIC;
+        when(node.getPackageName()).thenReturn(pkg);when(active.getPackageName()).thenReturn(pkg);
+        when(node.isClickable()).thenReturn(true);when(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)).thenReturn(true);
+        when(node.getContentDescription()).thenReturn(renewal?"关闭弹框按钮":"关闭");
+        liveBounds.set(500,1700,600,1800);
+        AccessibilityNodeInfo context=mock(AccessibilityNodeInfo.class);
+        when(context.getPackageName()).thenReturn(pkg);when(context.getWindowId()).thenReturn(7);
+        when(context.refresh()).thenReturn(true);when(context.isVisibleToUser()).thenReturn(true);when(context.isEnabled()).thenReturn(true);
+        if(renewal){
+            when(active.findAccessibilityNodeInfosByText("关闭弹框按钮")).thenReturn(java.util.List.of(node));
+            when(active.findAccessibilityNodeInfosByText("你已失去豪华绿钻全部权益")).thenReturn(java.util.List.of(context));
+            when(context.getContentDescription()).thenReturn("你已失去豪华绿钻全部权益");
+        }else{
+            when(node.getViewIdResourceName()).thenReturn(pkg+":id/iv_close_dialog_button");
+            when(active.findAccessibilityNodeInfosByViewId(pkg+":id/iv_close_dialog_button")).thenReturn(java.util.List.of(node));
+            when(active.findAccessibilityNodeInfosByViewId(pkg+":id/iv_background_dialog_content")).thenReturn(java.util.List.of(context));
+            when(context.getViewIdResourceName()).thenReturn(pkg+":id/iv_background_dialog_content");when(context.getContentDescription()).thenReturn("弹窗");
+            AccessibilityNodeInfo parent=mock(AccessibilityNodeInfo.class);when(context.getParent()).thenReturn(parent);
+            when(parent.getPackageName()).thenReturn(pkg);when(parent.getViewIdResourceName()).thenReturn(pkg+":id/fl_dialog_container");
+            when(parent.refresh()).thenReturn(true);when(parent.isVisibleToUser()).thenReturn(true);when(parent.getWindowId()).thenReturn(7);
+        }
+        window(pkg,"com.miui.player.ui.MusicBrowserActivity");return context;
+    }
+    private boolean musicPopupScan() throws Exception {
+        Method m=AdSkipService.class.getDeclaredMethod("findMusicPopup",AccessibilityNodeInfo.class,String.class);m.setAccessible(true);
+        return (boolean)m.invoke(service,active,SkipRules.MI_MUSIC);
+    }
+    @Test public void musicLaunchPromotionCloses() throws Exception {musicPopupSetup(false);assertTrue(musicPopupScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void musicLaunchRenewalCloses() throws Exception {musicPopupSetup(true);assertTrue(musicPopupScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void musicPromotionNeedsImageContext() throws Exception {when(musicPopupSetup(false).isVisibleToUser()).thenReturn(false);assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPromotionNeedsContainer() throws Exception {when(musicPopupSetup(false).getParent()).thenReturn(null);assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicRenewalNeedsExactContext() throws Exception {when(musicPopupSetup(true).getContentDescription()).thenReturn("播放设置");assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupNeverClicksRenewalPurchase() throws Exception {musicPopupSetup(true);when(node.getContentDescription()).thenReturn("¥2.88立即续费豪华绿钻");assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupChangedButtonDoesNotClick() throws Exception {musicPopupSetup(true);when(node.getContentDescription()).thenReturn("关闭弹框按钮","立即续费");assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupWrongWindowDoesNotClick() throws Exception {musicPopupSetup(false);when(active.getWindowId()).thenReturn(8);assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupContextWrongWindowDoesNotClick() throws Exception {when(musicPopupSetup(true).getWindowId()).thenReturn(8);assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupAfterEntryDoesNotClick() throws Exception {musicPopupSetup(false);org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(16));assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupRepeatedWindowDoesNotExtendEntry() throws Exception {musicPopupSetup(false);org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(16));window(SkipRules.MI_MUSIC,"android.app.Dialog");assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupDisabledDoesNotClick() throws Exception {musicPopupSetup(false);prefs.edit().putBoolean("popup_ads",false).commit();assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupExcludedDoesNotClick() throws Exception {musicPopupSetup(false);prefs.edit().putStringSet("skip_excluded",java.util.Set.of(SkipRules.MI_MUSIC)).commit();assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicPopupOversizedDoesNotClick() throws Exception {musicPopupSetup(false);liveBounds.set(0,0,1080,2340);assertFalse(musicPopupScan());verify(node,never()).performAction(anyInt());}
+    private AccessibilityNodeInfo musicSetup(){
+        countdownMarker();String pkg=SkipRules.MI_MUSIC;
+        when(node.getPackageName()).thenReturn(pkg);when(active.getPackageName()).thenReturn(pkg);when(node.getText()).thenReturn("5 跳过");
+        when(active.findAccessibilityNodeInfosByText("广告")).thenReturn(java.util.List.of());
+        AccessibilityNodeInfo context=mock(AccessibilityNodeInfo.class);
+        when(context.getPackageName()).thenReturn(pkg);when(context.getViewIdResourceName()).thenReturn(pkg+":id/root");
+        when(context.getContentDescription()).thenReturn("开屏广告");when(context.getWindowId()).thenReturn(7);
+        when(context.refresh()).thenReturn(true);when(context.isVisibleToUser()).thenReturn(true);when(context.isEnabled()).thenReturn(true);
+        doAnswer(i->{((Rect)i.getArgument(0)).set(0,0,1080,2340);return null;}).when(context).getBoundsInScreen(any());
+        when(active.findAccessibilityNodeInfosByViewId(pkg+":id/root")).thenReturn(java.util.List.of(context));
+        return context;
+    }
+    private boolean musicScan() throws Exception {
+        Method m=AdSkipService.class.getDeclaredMethod("findCountdownLabel",AccessibilityNodeInfo.class,String.class);m.setAccessible(true);
+        return (boolean)m.invoke(service,active,SkipRules.MI_MUSIC);
+    }
+    @Test public void musicIndependentSkipClicksWithSplashContext() throws Exception {musicSetup();assertTrue(musicScan());verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void musicVipEntryDoesNotClick() throws Exception {musicSetup();when(node.getText()).thenReturn("开VIP免广告｜");assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicCombinedVipAndSkipDoesNotClick() throws Exception {musicSetup();when(node.getText()).thenReturn("开VIP免广告｜5 跳过");assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicInvisibleContextDoesNotClick() throws Exception {when(musicSetup().isVisibleToUser()).thenReturn(false);assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicContextDisappearsBeforeClick() throws Exception {when(musicSetup().getContentDescription()).thenReturn("开屏广告","首页");assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicWrongContextIdDoesNotClick() throws Exception {when(musicSetup().getViewIdResourceName()).thenReturn(SkipRules.MI_MUSIC+":id/other");assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicOtherWindowContextDoesNotClick() throws Exception {when(musicSetup().getWindowId()).thenReturn(8);assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicExcludedDoesNotClick() throws Exception {musicSetup();prefs.edit().putStringSet("skip_excluded",java.util.Set.of(SkipRules.MI_MUSIC)).commit();assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
+    @Test public void musicOversizedTargetDoesNotClick() throws Exception {musicSetup();liveBounds.set(0,0,1080,2340);assertFalse(musicScan());verify(node,never()).performAction(anyInt());}
     private void countdownScan() throws Exception {
         Method method=AdSkipService.class.getDeclaredMethod("findCountdownLabel",AccessibilityNodeInfo.class,String.class);method.setAccessible(true);
         method.invoke(service,active,"com.netease.cloudmusic");

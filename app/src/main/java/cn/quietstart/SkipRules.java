@@ -4,6 +4,10 @@ import java.util.regex.Pattern;
 /** Conservative ad-dismiss labels; generic close requires local ad context. */
 public final class SkipRules {
     public static final String CMCC="com.greenpoint.android.mc10086.activity";
+    public static final String JD="com.jingdong.app.mall";
+    public static final String BAIDU="com.baidu.BaiduMap";
+    public static final String MI_MUSIC="com.miui.player";
+    public static boolean entrySkipLabel(CharSequence text){return "跳过".equals(clean(text))||countdown(text)||matches(JD,text);}
     public static boolean cmccLabel(CharSequence text){return clean(text).matches("[0-9]{1,2}跳过");}
     private static final Set<String> SYSTEM=Set.of("android","cn.quietstart","com.android.settings","com.android.systemui","com.android.permissioncontroller","com.android.packageinstaller","com.android.launcher","com.android.launcher3","com.google.android.permissioncontroller","com.google.android.packageinstaller","com.miui.securitycenter","com.miui.home","com.miui.packageinstaller","com.miui.aod");
     private static final Pattern LABEL=Pattern.compile("(?:\\d{1,2}[sS秒]?)?跳过广告(?:[（(]?\\d{1,2}[sS秒]?[）)]?)?");

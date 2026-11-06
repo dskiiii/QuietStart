@@ -1,3 +1,9 @@
+**0.6.6** combines automatic VPN handoff for Clash, separate accessibility permission/connection status, and additional China Mobile, JD, Baidu Maps and Xiaomi Music rules. [Download APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.6/QuietStart-0.6.6.apk) · [Release notes and checksums](https://github.com/dskiiii/QuietStart/releases/tag/v0.6.6).
+
+Xiaomi Music triggered automatic splash skipping in three final-build launches, with recordings showing the home screen. China Mobile had two observed early dismissals in the 0.6.4 device tests. JD and Baidu Maps real-ad dismissal remains unverified. Xiaomi Music's activity and renewal popup rules still need device confirmation, and a watch-videos-for-listening popup was not closed. 107 desktop Android tests, core checks, build and lint pass. See [0.6.6 verification](VERIFICATION-0.6.6.md), [0.6.4 verification](VERIFICATION-0.6.4.md), and [Clash handoff device tests](VERIFICATION-0.6.3-PHONE.md).
+
+The entries below preserve earlier development results; their unresolved findings may have later updates above.
+
 0.6.0 adds HTTPS subscriptions and local rule-file import, with explicit confirmation for unsupported rules and domain exception support. Large imported lists now load without the observed startup timeout. A 16-launch device comparison did not establish that FilterFusion is better than anti-AD; both still showed splash ads. See [verification](VERIFICATION-0.6.0.md).
 
 0.5.8 adds a strictly validated Baidu Maps splash-skip view-ID rule. 31 Android unit tests pass. No real splash ad appeared during this device retest; dismissal remains unverified. See [verification](VERIFICATION-0.5.8.md).
@@ -24,17 +30,17 @@
 
 **QuietStart** (Chinese name: **静启**) is a no-root DNS ad filter for Android 13 and later. It uses Android's local VPN interface to block advertising domains. The app UI is currently in Chinese.
 
-The current version is **0.6.0**. DNS filtering covers all apps and browsers by default. Optional accessibility rules attempt to dismiss explicitly identified ads, with additional splash compatibility for selected apps. Enable accessibility separately in Android settings. Pausing DNS filtering does not disable it. China Mobile remains unreliable, and real-ad dismissal with the new Baidu Maps rule is unverified. This is not browser cosmetic filtering and does not remove every ad.
+The current version is **0.6.6**. DNS filtering covers all apps and browsers by default. Enable filtering once: QuietStart yields to an observed Clash VPN and attempts to resume after it exits. Manual pause cancels this recovery. Meta and FlClash handoff was tested on Android 16; force-stop, reboot and long-term reliability are not guaranteed. Optional ad dismissal requires Android accessibility permission and remains independent of the VPN. This is not browser cosmetic filtering and does not remove every ad.
 
-Real-ad skipping remains unverified: an initial Ctrip cached ad was not skipped. After changing node access flags, subsequent launches did not display that ad, so no successful automatic click has been observed. The counter records click requests, not confirmed skips. This source also fixes duplicate-start status and adds startup timeout recovery; four pause/resume cycles, duplicate start, timeout recovery, and idle-wait checks passed on a Mi10 running Android 13. All-day battery use remains unmeasured.
+Click counters record accepted actions, not confirmed dismissals; device recordings are used for the specific results above. Earlier Mi10 / Android 13 testing covered pause/resume, duplicate start, startup timeout recovery and idle wait. All-day battery use remains unmeasured.
 
 ## Download
 
-[Latest release](https://github.com/dskiiii/QuietStart/releases/latest) · [0.6.0 APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.0/QuietStart-0.6.0.apk)
+[Latest release](https://github.com/dskiiii/QuietStart/releases/latest) · [0.6.6 APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.6/QuietStart-0.6.6.apk)
 
 Install the APK, tap “开启过滤” (Start filtering), approve the system VPN prompt, and wait for “过滤运行中” (Filtering). Tap “收起” (Hide) to close the page while filtering continues. The app is excluded from recent tasks; its launcher icon remains available.
 
-The default scope includes Xiaohongshu, NetEase Cloud Music, and Baidu Maps. Pause filtering before changing the scope under Settings; all-app filtering is optional.
+The default scope includes all apps and browsers. Pause filtering before changing the scope under Settings.
 
 The release APK uses the existing development test signing key for compatibility with previous versions. Signing keys are not included. Locally rebuilt APKs usually have a different signature and cannot replace the release APK in place.
 
