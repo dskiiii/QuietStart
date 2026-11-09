@@ -1,4 +1,18 @@
-**0.6.6** combines automatic VPN handoff for Clash, separate accessibility permission/connection status, and additional China Mobile, JD, Baidu Maps and Xiaomi Music rules. [Download APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.6/QuietStart-0.6.6.apk) · [Release notes and checksums](https://github.com/dskiiii/QuietStart/releases/tag/v0.6.6).
+# QuietStart · 静启
+
+[中文](README.md) | English
+
+Current version: **0.6.14**. [Download APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.14/QuietStart-0.6.14.apk) · [Release notes and checksums](https://github.com/dskiiii/QuietStart/releases/tag/v0.6.14).
+
+- Simplified home and settings: a compact forest-green card and shield, automatic skipping, and shortcuts to filtering scope and background permissions. Technical records remain under diagnostics.
+- Optional background support distinguishes missing accessibility authorization from a disconnected service. Battery exemptions require explicit user action; autostart, task locking and unrestricted battery use are not mandatory setup steps. Force-stop may still revoke authorization on some devices.
+- Refresh countdown buttons before reading their clickable state, and recognize NetEase's exact combined ad/preload marker while retaining package, window, geometry and pre-click validation.
+
+All 134 Android tests, 10,141 core checks, skip-rule tests, build and lint pass. Version 0.6.14 was installed and its UI, filtering and accessibility connection checked. Eleven valid NetEase launches/returns before and after the fix showed no verifiable target ad: **real intermittent dismissal remains unverified; no-ad launches do not prove the issue is fixed or cannot recur**.
+
+See [current UI and APK verification](VERIFICATION-0.6.14.md), [NetEase evidence and limitations](VERIFICATION-0.6.8.md), and [background support](VERIFICATION-0.6.7.md). Development revisions 0.6.7–0.6.13 are included in this release. Earlier entries and verification documents retain their historical test status.
+
+## Earlier release results
 
 Xiaomi Music triggered automatic splash skipping in three final-build launches, with recordings showing the home screen. China Mobile had two observed early dismissals in the 0.6.4 device tests. JD and Baidu Maps real-ad dismissal remains unverified. Xiaomi Music's activity and renewal popup rules still need device confirmation, and a watch-videos-for-listening popup was not closed. 107 desktop Android tests, core checks, build and lint pass. See [0.6.6 verification](VERIFICATION-0.6.6.md), [0.6.4 verification](VERIFICATION-0.6.4.md), and [Clash handoff device tests](VERIFICATION-0.6.3-PHONE.md).
 
@@ -24,9 +38,6 @@ The entries below preserve earlier development results; their unresolved finding
 
 > 0.5.0 universal filtering preview: first launch migrates DNS scope to all apps and browsers. Optional accessibility matching now covers eligible apps without a fixed app list, using explicit ad-dismiss labels or a visible ad marker beside a small close control. System UI is excluded; per-package exclusions and a popup sub-toggle are available. It does not implement browser cosmetic filtering. Click counts indicate issued actions, not verified dismissals. Earlier test notes below describe previous releases.
 
-# QuietStart · 静启
-
-[中文](README.md) | English
 
 **QuietStart** (Chinese name: **静启**) is a no-root DNS ad filter for Android 13 and later. It uses Android's local VPN interface to block advertising domains. The app UI is currently in Chinese.
 

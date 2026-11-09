@@ -179,6 +179,7 @@ public class CtripGestureTest {
         when(active.findAccessibilityNodeInfosByText("跳过")).thenReturn(java.util.List.of(node));
         AccessibilityNodeInfo marker=mock(AccessibilityNodeInfo.class);
         when(marker.getPackageName()).thenReturn("com.netease.cloudmusic");when(marker.getText()).thenReturn("广告");when(marker.isVisibleToUser()).thenReturn(true);
+        when(marker.getWindowId()).thenReturn(7);when(marker.refresh()).thenReturn(true);
         doAnswer(i->{((Rect)i.getArgument(0)).set(780,141,835,193);return null;}).when(marker).getBoundsInScreen(any());
         when(active.findAccessibilityNodeInfosByText("广告")).thenReturn(java.util.List.of(marker));return marker;
     }
@@ -254,6 +255,40 @@ public class CtripGestureTest {
         method.invoke(service,active,"com.netease.cloudmusic");
     }
     @Test public void adjacentAdCountdownClicks() throws Exception {countdownMarker();countdownScan();verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();}
+    @Test public void neteasePreloadedAdMarkerClicksCountdown() throws Exception {
+        when(countdownMarker().getText()).thenReturn("广告 | WIFI下预载");
+        countdownScan();verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();
+    }
+    @Test public void neteaseFullWidthPreloadedMarkerClicksCountdown() throws Exception {
+        when(countdownMarker().getText()).thenReturn("广告｜WiFi下预载");
+        countdownScan();verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+    @Test public void preloadedMarkerDoesNotMatchPurchaseText() throws Exception {
+        when(countdownMarker().getText()).thenReturn("广告 | WIFI下预载 立即购买");
+        countdownScan();verify(node,never()).performAction(anyInt());
+    }
+    @Test public void preloadedMarkerInOtherWindowNeverClicks() throws Exception {
+        AccessibilityNodeInfo marker=countdownMarker();when(marker.getText()).thenReturn("广告 | WIFI下预载");when(marker.getWindowId()).thenReturn(8);
+        countdownScan();verify(node,never()).performAction(anyInt());
+    }
+    @Test public void preloadedMarkerDisappearsBeforeClickNeverClicks() throws Exception {
+        when(countdownMarker().getText()).thenReturn("广告 | WIFI下预载","音乐推荐");
+        countdownScan();verify(node,never()).performAction(anyInt());
+    }
+    @Test public void staleAdMarkerNeverClicks() throws Exception {
+        when(countdownMarker().refresh()).thenReturn(false);
+        countdownScan();verify(node,never()).performAction(anyInt());
+    }
+    @Test public void countdownRefreshesBeforeReadingClickableState() throws Exception {
+        countdownMarker();when(node.isClickable()).thenReturn(false);
+        when(node.refresh()).thenAnswer(i->{when(node.isClickable()).thenReturn(true);return true;});
+        countdownScan();verify(node).performAction(AccessibilityNodeInfo.ACTION_CLICK);noGesture();
+    }
+    @Test public void countdownBecomesUnclickableOnRefreshNeverClicks() throws Exception {
+        countdownMarker();
+        when(node.refresh()).thenAnswer(i->{when(node.isClickable()).thenReturn(false);return true;});
+        countdownScan();verify(node,never()).performAction(anyInt());noGesture();
+    }
     @Test public void countdownWithoutVisibleMarkerNeverClicks() throws Exception {when(countdownMarker().isVisibleToUser()).thenReturn(false);countdownScan();verify(node,never()).performAction(anyInt());}
     @Test public void unrelatedAdElsewhereNeverClicks() throws Exception {
         AccessibilityNodeInfo marker=countdownMarker();doAnswer(i->{((Rect)i.getArgument(0)).set(780,800,835,850);return null;}).when(marker).getBoundsInScreen(any());

@@ -1,4 +1,4 @@
-param([switch]$TestOnly)
+﻿param([switch]$TestOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
@@ -18,5 +18,5 @@ if ($TestOnly) { return }
 & "$projectRoot/gradlew.bat" --no-daemon assembleDebug lintDebug
 if ($LASTEXITCODE -ne 0) { throw 'Android build or lint failed' }
 New-Item -ItemType Directory -Force dist | Out-Null
-Copy-Item app/build/outputs/apk/debug/app-debug.apk dist/QuietStart-0.6.6.apk -Force
-Get-FileHash dist/QuietStart-0.6.6.apk -Algorithm SHA256
+Copy-Item app/build/outputs/apk/debug/app-debug.apk dist/QuietStart-0.6.14.apk -Force
+Get-FileHash dist/QuietStart-0.6.14.apk -Algorithm SHA256

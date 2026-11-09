@@ -1,0 +1,12 @@
+<resources>
+    <style name="QuietTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#397D62</item>
+        <item name="android:colorControlHighlight">#15397D62</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#F4F5F0</item>
+        <item name="android:statusBarColor">#F4F5F0</item>
+        <item name="android:navigationBarColor">#F4F5F0</item>
+    </style>
+</resources>

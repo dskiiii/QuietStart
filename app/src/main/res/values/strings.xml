@@ -1,9 +1,9 @@
 <resources>
-    <string name="home_counts">已拦截 %1$d 次请求</string>
+    <string name="home_counts">本次已拦截 %1$d 次请求</string>
     <string name="full_rules">使用完整 anti-AD 规则库（推荐）</string>
     <string name="target_label">%1$s%2$s</string>
     <string name="request_counts">本次进程累计  拦截 %1$d  /  放行 %2$d  /  失败 %3$d\n%4$s</string>
-    <string name="skip_service_description">在各应用中读取当前界面控件，尝试点击明确的跳过广告、关闭广告按钮，或同一局部区域内带广告标记的关闭按钮。中国移动支持核验专用开屏控件后点击；京东和百度地图支持刚进入主页面时右上角的跳过按钮。小米音乐支持核验开屏广告后点击独立倒计时按钮，并尝试关闭启动时的活动弹窗和会员续费提示。系统界面不处理。页面内容仅在本机即时处理，不保存或上传，不截屏。百度地图仅保留最近检查和点击结果及时间，不记录页面内容。携程开屏兼容点击会在实时识别的右上角跳过广告文字位置模拟轻点，可单独关闭。需打开静启中的自动关闭开关，可随时关闭或排除应用。无法保证所有广告都能识别。</string>
+    <string name="skip_service_description">用于识别并自动点击广告的跳过或关闭按钮。需读取当前界面控件，并可能模拟轻点；仅在本机处理，不截屏、不保存或上传页面内容。系统界面不处理，部分广告可能无法识别。可在静启首页随时关闭，或在高级设置中排除应用。</string>
     <string name="skip_state">自动关闭广告：%1$s%2$s</string>
     <string name="skip_count">\n已发出关闭点击 %1$d 次（不等同于成功关闭次数）</string>
 </resources>

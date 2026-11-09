@@ -278,7 +278,9 @@ public final class AdSkipService extends AccessibilityService {
         try{
             for(int i=0;i<Math.min(nodes.size(),32)&&!destroyed&&enabled(this);i++){
                 AccessibilityNodeInfo node=nodes.get(i);
-                if(node==null||!node.isClickable()||!node.refresh()||!node.isVisibleToUser()||!node.isEnabled()||!pkg.contentEquals(node.getPackageName()==null?"":node.getPackageName())||!SkipRules.countdown(node.getText()))continue;
+                // Refresh before checking clickable: a cached non-clickable splash control
+                // can become interactive while the countdown is being updated.
+                if(node==null||!node.refresh()||!node.isClickable()||!node.isVisibleToUser()||!node.isEnabled()||!pkg.contentEquals(node.getPackageName()==null?"":node.getPackageName())||!SkipRules.countdown(node.getText()))continue;
                 Rect bounds=new Rect();node.getBoundsInScreen(bounds);
                 android.util.DisplayMetrics m=getResources().getDisplayMetrics();
                 if(!validBounds(bounds,m,true))continue;
@@ -290,6 +292,7 @@ public final class AdSkipService extends AccessibilityService {
                     if(!node.refresh()||!node.isClickable()||!node.isVisibleToUser()||!node.isEnabled()||!SkipRules.countdown(node.getText()))continue;
                     Rect refreshed=new Rect();node.getBoundsInScreen(refreshed);if(!refreshed.equals(bounds))continue;
                     if(music&&!musicSplashContext(live))continue;
+                    if(!music&&!nearbyAdMarker(live,pkg,refreshed,m))continue;
                     if(destroyed||!enabled(this)||FilterVpnService.prefs(this).getStringSet("skip_excluded",java.util.Collections.emptySet()).contains(pkg))return false;
                     if(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)){
                         lastClick=SystemClock.elapsedRealtime();outcome=music?"小米音乐：已点击开屏跳过（尚未确认广告消失）":"已点击带广告标记的倒计时跳过（尚未确认消失）";
@@ -309,7 +312,8 @@ public final class AdSkipService extends AccessibilityService {
         try{
             for(int i=0;i<Math.min(markers.size(),32);i++){
                 AccessibilityNodeInfo marker=markers.get(i);
-                if(marker==null||!marker.isVisibleToUser()||!pkg.contentEquals(marker.getPackageName()==null?"":marker.getPackageName())||!SkipRules.adMarker(marker.getText()))continue;
+                if(marker==null||!marker.refresh()||!marker.isVisibleToUser()||marker.getWindowId()!=root.getWindowId()
+                        ||!pkg.contentEquals(marker.getPackageName()==null?"":marker.getPackageName())||!SkipRules.countdownAdMarker(pkg,marker.getText()))continue;
                 Rect r=new Rect();marker.getBoundsInScreen(r);
                 if(SkipRules.smallBounds(r.left,r.top,r.right,r.bottom,m.widthPixels,m.heightPixels)&&r.bottom<=m.heightPixels/4&&Math.abs(r.centerY()-button.centerY())<=Math.max(button.height(),r.height())&&r.right<=button.left&&button.left-r.right<=m.widthPixels/4)return true;
             }

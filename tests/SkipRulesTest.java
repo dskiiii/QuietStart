@@ -18,6 +18,12 @@ public final class SkipRulesTest {
         if(!SkipRules.cmccLabel("2 跳过")||SkipRules.cmccLabel("跳过")||SkipRules.cmccLabel("2 跳过登录")||SkipRules.cmccLabel(null))throw new AssertionError("CMCC exact countdown");
         for(String label:new String[]{"跳过 5","5 跳过","跳过(3s)"})if(!SkipRules.countdown(label))throw new AssertionError(label);
         for(String label:new String[]{"跳过","跳过登录","跳过5领取奖励","倒计时5"})if(SkipRules.countdown(label))throw new AssertionError(label);
+        for(String label:new String[]{"广告 | WIFI下预载","广告｜WiFi下预载"," 广告 | wifi 下预载 "}){
+            if(!SkipRules.countdownAdMarker(SkipRules.NETEASE,label))throw new AssertionError("NetEase preload marker: "+label);
+            if(SkipRules.countdownAdMarker("com.example.app",label)||SkipRules.adMarker(label))throw new AssertionError("NetEase-only marker leaked");
+        }
+        for(String label:new String[]{"广告 | WIFI下预载 立即购买","WIFI下预载","广告设置 | WIFI下预载","非广告|WIFI下预载",null})
+            if(SkipRules.countdownAdMarker(SkipRules.NETEASE,label))throw new AssertionError("Ambiguous preload marker: "+label);
         System.out.println("PASS: universal ad labels, system exclusions, ambiguous prompts, popup and opening bounds");
     }
 }

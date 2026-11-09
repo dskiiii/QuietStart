@@ -7,6 +7,7 @@ public final class SkipRules {
     public static final String JD="com.jingdong.app.mall";
     public static final String BAIDU="com.baidu.BaiduMap";
     public static final String MI_MUSIC="com.miui.player";
+    public static final String NETEASE="com.netease.cloudmusic";
     public static boolean entrySkipLabel(CharSequence text){return "跳过".equals(clean(text))||countdown(text)||matches(JD,text);}
     public static boolean cmccLabel(CharSequence text){return clean(text).matches("[0-9]{1,2}跳过");}
     private static final Set<String> SYSTEM=Set.of("android","cn.quietstart","com.android.settings","com.android.systemui","com.android.permissioncontroller","com.android.packageinstaller","com.android.launcher","com.android.launcher3","com.google.android.permissioncontroller","com.google.android.packageinstaller","com.miui.securitycenter","com.miui.home","com.miui.packageinstaller","com.miui.aod");
@@ -20,6 +21,9 @@ public final class SkipRules {
     public static boolean explicitClose(CharSequence text){return Set.of("关闭广告","跳过此广告","关闭此广告","closead","closeadvertisement","skipad").contains(clean(text));}
     public static boolean closeLabel(CharSequence text){return Set.of("关闭","close","×","✕","✖").contains(clean(text));}
     public static boolean adMarker(CharSequence text){return Set.of("广告","advertisement","sponsored").contains(clean(text));}
+    public static boolean countdownAdMarker(String pkg,CharSequence text){
+        return adMarker(text)||(NETEASE.equals(pkg)&&"广告|wifi下预载".equals(clean(text).replace('｜','|')));
+    }
     public static boolean smallBounds(int l,int t,int r,int b,int w,int h){return w>0&&h>0&&l>=0&&t>=0&&r<=w&&b<=h&&r>l&&b>t&&r-l<=w/2&&b-t<=h/8;}
     public static boolean safeBounds(int l,int t,int r,int b,int w,int h){return w>0&&h>0&&l>=w/2&&t>=0&&r<=w&&b<=h/4&&r>l&&b>t&&r-l<=w/2&&b-t<=h/8;}
 }
