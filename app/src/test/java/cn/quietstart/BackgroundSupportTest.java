@@ -51,7 +51,7 @@ public class BackgroundSupportTest {
         assertEquals(Settings.ACTION_ACCESSIBILITY_SETTINGS,Shadows.shadowOf(activity).getNextStartedActivity().getAction());
     }
     @Test public void dismissingHelpDoesNotChangePermission()throws Exception{configured();call("showAccessHelp");ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_NEGATIVE).performClick();Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();assertEquals(AccessibilityStatus.State.DISCONNECTED,AccessibilityStatus.read(activity));assertNull(Shadows.shadowOf(activity).getNextStartedActivity());}
-    @Test public void connectedServiceHidesRepairButton()throws Exception{AdSkipService.connected=true;call("refresh");assertEquals(View.GONE,button("accessHelp").getVisibility());}
+    @Test public void connectedServiceHidesRepairButton()throws Exception{configured();AdSkipService.connected=true;call("refresh");assertEquals(View.GONE,button("accessHelp").getVisibility());}
     @Test public void pausedFeatureDoesNotNag()throws Exception{FilterVpnService.prefs(context).edit().putBoolean("skip_ads",false).commit();call("refresh");assertEquals(View.GONE,button("accessHelp").getVisibility());}
     @Test public void lostConnectionShowsRepairButton()throws Exception{configured();call("refresh");assertEquals(View.VISIBLE,button("accessHelp").getVisibility());assertNull(ShadowAlertDialog.getLatestAlertDialog());}
     @Test public void batteryRequestIsScopedToOurPackage()throws Exception{

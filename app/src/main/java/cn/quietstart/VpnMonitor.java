@@ -70,6 +70,12 @@ final class VpnMonitor implements AutoCloseable {
         }
         return false;
     }
+    static boolean ownVpnPresent(Context context){
+        ConnectivityManager manager=context.getSystemService(ConnectivityManager.class);
+        for(Network network:manager.getAllNetworks())
+            if(own(manager.getNetworkCapabilities(network),manager.getLinkProperties(network)))return true;
+        return false;
+    }
     @Override public void close(){
         if(registered){registered=false;manager.unregisterNetworkCallback(callback);}
         capabilities.clear();properties.clear();

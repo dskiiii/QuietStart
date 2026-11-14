@@ -6,11 +6,10 @@ import android.provider.Settings;
 
 /** Reads system configuration separately from the live service connection. */
 final class AccessibilityStatus {
-    enum State { OFF, CONNECTED, DISCONNECTED, NOT_ENABLED, UNKNOWN }
+    enum State { OFF, CONNECTED, DISCONNECTED, NOT_ENABLED, UNRESPONSIVE, UNKNOWN }
 
     static State read(Context context) {
         if (!AdSkipService.enabled(context)) return State.OFF;
-        if (AdSkipService.connected) return State.CONNECTED;
         try {
             String services = Settings.Secure.getString(context.getContentResolver(),
                     Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
@@ -18,7 +17,7 @@ final class AccessibilityStatus {
             if (services != null) {
                 for (String entry : services.split(":")) {
                     if (expected.equals(ComponentName.unflattenFromString(entry))) {
-                        return State.DISCONNECTED;
+                        return !AdSkipService.connected ? State.DISCONNECTED : AdSkipService.scanUnresponsive() ? State.UNRESPONSIVE : State.CONNECTED;
                     }
                 }
             }
@@ -34,6 +33,7 @@ final class AccessibilityStatus {
             case CONNECTED: return "已连接";
             case DISCONNECTED: return "系统开关已开启，服务未连接";
             case NOT_ENABLED: return "系统开关未开启";
+            case UNRESPONSIVE: return "已授权，扫描暂未响应";
             default: return "服务未连接，系统开关状态无法读取";
         }
     }

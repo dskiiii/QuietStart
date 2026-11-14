@@ -18,13 +18,25 @@ public final class FilterVpnService extends VpnService {
     public static final String STOP="cn.quietstart.STOP", RELOAD="cn.quietstart.RELOAD";
     public static final String STATE_CHANGED="cn.quietstart.STATE_CHANGED";
     public static volatile boolean stopping=false;
-    private static FilterVpnService instance;
+    private static volatile FilterVpnService instance;
     private volatile int generation;
     private static final Handler stateHandler=new Handler(Looper.getMainLooper());
     private static Runnable startTimeout;
     public static volatile boolean waitingForVpn,needsConsent;
     private VpnMonitor vpnMonitor;
     private boolean destroyed;
+    public static volatile boolean healthChecking,healthProblem;
+    public static volatile long lastHealthCheck;
+    public static volatile String healthResult="尚未检查";
+    private boolean foregroundActive;
+    private long lastCheckElapsed=-1,lastRepairElapsed=-1;
+    private final ThreadPoolExecutor healthWorker=new ThreadPoolExecutor(0,1,15,TimeUnit.SECONDS,new ArrayBlockingQueue<>(1));
+    private final BroadcastReceiver wakeReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            PowerManager power=getSystemService(PowerManager.class);
+            if(power==null||!power.isDeviceIdleMode())requestHealthCheck(FilterVpnService.this);
+        }
+    };
     private final Handler handoffHandler=new Handler(Looper.getMainLooper());
     private final Runnable resumeAfterVpn=()->{
         if(destroyed||!waitingForVpn||needsConsent||prefs(this).getBoolean("user_paused",false))return;
@@ -54,19 +66,83 @@ public final class FilterVpnService extends VpnService {
         stateHandler.postDelayed(startTimeout,20000);
     }
     public static void start(Context context){
-        prefs(context).edit().putBoolean("user_paused",false).putBoolean("handoff_waiting",false).putBoolean("handoff_seen",false).remove("external_vpn_mode").apply();
+        prefs(context).edit().putBoolean("filter_requested",true).putBoolean("user_paused",false).putBoolean("handoff_waiting",false).putBoolean("handoff_seen",false).remove("external_vpn_mode").apply();
         needsConsent=false;waitingForVpn=false;
         starting=true;status="正在启动…";watchStart(context);
         try{context.startForegroundService(new Intent(context,FilterVpnService.class));}
         catch(RuntimeException e){cancelStartTimeout();starting=false;status="启动失败："+e.getClass().getSimpleName();notifyState(context);throw e;}
     }
-    @Override public void onCreate(){super.onCreate();instance=this;}
-    public static void notifyState(Context c){c.sendBroadcast(new Intent(STATE_CHANGED).setPackage(c.getPackageName()));}
+    @Override public void onCreate(){
+        super.onCreate();instance=this;healthChecking=false;healthProblem=false;lastHealthCheck=0;healthResult="尚未检查";
+        IntentFilter wake=new IntentFilter(Intent.ACTION_USER_PRESENT);wake.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+        registerReceiver(wakeReceiver,wake,Context.RECEIVER_NOT_EXPORTED);
+    }
+    public static void notifyState(Context c){
+        c.sendBroadcast(new Intent(STATE_CHANGED).setPackage(c.getPackageName()));
+        FilterVpnService current=instance;
+        if(current!=null)current.handoffHandler.post(()->{if(instance==current&&!current.destroyed&&current.foregroundActive)current.showForeground();});
+    }
+    /** Event-triggered, coalesced local-TUN check; no repeating alarm or wake lock. */
+    public static void requestHealthCheck(Context context){
+        FilterVpnService current=instance;
+        if(current!=null)current.handoffHandler.post(current::checkHealth);
+        else if(running){running=false;healthProblem=true;status="过滤服务未运行，请重新开启";notifyState(context);}
+    }
+    /** Restore an explicit earlier start after process recreation, preserving VPN handoff state. */
+    public static void restoreRequestedFiltering(Context context){
+        SharedPreferences p=prefs(context);
+        boolean requested=p.getBoolean("filter_requested",p.contains("user_paused")&&!p.getBoolean("user_paused",true));
+        if(!requested||p.getBoolean("user_paused",false)||instance!=null||starting)return;
+        p.edit().putBoolean("filter_requested",true).apply();
+        running=false;starting=true;status="正在恢复此前开启的过滤";watchStart(context);
+        try{context.startForegroundService(new Intent(context,FilterVpnService.class));}
+        catch(RuntimeException denied){
+            cancelStartTimeout();starting=false;healthProblem=true;status="系统未允许后台恢复，打开静启后重试";
+            // Do not leave an old running notification after an unsuccessful restoration.
+            NotificationManager nm=context.getSystemService(NotificationManager.class);if(nm!=null)nm.cancel(1);
+            notifyState(context);
+        }
+    }
+    private void checkHealth(){
+        if(destroyed||!running||starting||waitingForVpn||needsConsent||healthChecking||prefs(this).getBoolean("user_paused",false))return;
+        long now=SystemClock.elapsedRealtime();
+        if(lastCheckElapsed>=0&&now-lastCheckElapsed<30000)return;
+        lastCheckElapsed=now;healthChecking=true;
+        int session=generation;
+        boolean alive=tun!=null&&!closed&&rules!=null&&reader!=null&&reader.isAlive();
+        notifyState(this);
+        try{healthWorker.execute(()->{
+            String result;
+            try{result=alive?probeLocalDns():"失败：过滤线程或接口已停止";}
+            catch(RuntimeException failure){result="失败：本地链路检查中断";}
+            String completed=result;handoffHandler.post(()->completeHealthCheck(session,completed));
+        });}catch(RejectedExecutionException unavailable){healthChecking=false;healthResult="本次检查未执行，等待下次唤醒";notifyState(this);}
+    }
+    String probeLocalDns(){return DnsProbe.check(SELF_TEST,3);}
+    private void completeHealthCheck(int session,String result){
+        if(destroyed||closed||session!=generation||!running||waitingForVpn||prefs(this).getBoolean("user_paused",false))return;
+        healthChecking=false;lastHealthCheck=System.currentTimeMillis();healthResult=result;
+        if("通过".equals(result)){healthProblem=false;notifyState(this);return;}
+        healthProblem=true;
+        try{
+            if((vpnMonitor!=null&&vpnMonitor.blocksStart())||VpnMonitor.otherVpnPresent(this)){
+                yieldToVpn(vpnMonitor!=null&&vpnMonitor.hasOther());networksChanged();return;
+            }
+            long now=SystemClock.elapsedRealtime();
+            // Repair only an OS-confirmed tunnel belonging to us, never take over
+            // an unknown/revoked VPN. One attempt per minute bounds repeated failures.
+            boolean repair=VpnMonitor.ownVpnPresent(this)&&(lastRepairElapsed<0||now-lastRepairElapsed>=60000);
+            stopFiltering(false);
+            if(repair){lastRepairElapsed=now;status="本地链路无响应，正在恢复过滤";startFiltering();}
+            else {status="过滤链路未通过检查，请重新开启";showForeground();notifyState(this);}
+        }catch(RuntimeException error){status="过滤检查失败，请重新开启";stopFiltering(false);showForeground();notifyState(this);}
+    }
     public static void pause(Context c){
         SharedPreferences p=prefs(c);
-        p.edit().putBoolean("user_paused",true).putBoolean("handoff_waiting",false).putBoolean("handoff_seen",false)
+        p.edit().putBoolean("filter_requested",false).putBoolean("user_paused",true).putBoolean("handoff_waiting",false).putBoolean("handoff_seen",false)
                 .putLong("pause_epoch",p.getLong("pause_epoch",0)+1).apply();
         waitingForVpn=false;needsConsent=false;
+        healthProblem=false;
         running=false;starting=false;stopping=true;status="正在暂停…";notifyState(c);
         // stopService alone cannot destroy a service still bound by the VPN system.
         FilterVpnService service=instance;
@@ -248,6 +324,7 @@ public final class FilterVpnService extends VpnService {
                         cancelStartTimeout();showForeground();
                         notifyState(this);
                         reader=new Thread(()->readLoop(session,sessionTun,sessionWaiter,sessionPool),"QuietStart-DNS");reader.start();
+                        checkHealth();
                     });
                 }catch(Exception e){new Handler(Looper.getMainLooper()).post(()->{if(!closed&&session==generation){status="规则加载失败："+e.getMessage();stopFiltering();stopSelf();}});}
             });
@@ -264,8 +341,11 @@ public final class FilterVpnService extends VpnService {
         nm.createNotificationChannel(new NotificationChannel("filter","广告过滤运行状态",NotificationManager.IMPORTANCE_LOW));
         Notification n=new Notification.Builder(this,"filter").setSmallIcon(cn.quietstart.R.drawable.ic_shield)
             .setContentTitle(waitingForVpn?"静启 · 等待恢复过滤":"静启 · 广告过滤")
-            .setContentText(status+" · 点击打开")
+            .setContentText((healthChecking?"正在检查过滤链路":status)+" · 自动跳过："+AccessibilityStatus.label(AccessibilityStatus.read(this)))
+            .setSubText(lastHealthCheck==0?"本次运行尚未完成链路检查":"最近自检 "+new SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(lastHealthCheck))+" · "+("通过".equals(healthResult)?"通过":"未通过"))
+            .setShowWhen(false)
             .setContentIntent(openIntent()).setOngoing(true).setOnlyAlertOnce(true).build();
+        foregroundActive=true;
         if(Build.VERSION.SDK_INT>=34) startForeground(1,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(1,n);
     }
@@ -294,7 +374,7 @@ public final class FilterVpnService extends VpnService {
     }
     private void readerStopped(int session,String message){
         new Handler(Looper.getMainLooper()).post(()->{
-            if(!closed&&session==generation&&!destroyed){yieldToVpn(false);networksChanged();}
+            if(!closed&&session==generation&&!destroyed)completeHealthCheck(session,"失败："+message);
         });
     }
     private void process(byte[] packet,byte[] query,FileOutputStream output) {
@@ -302,7 +382,9 @@ public final class FilterVpnService extends VpnService {
         try {
             String name=DnsPacket.question(query).name();
             byte[] response;
-            if(SELF_TEST.equals(name) || rules.blocks(name)) {
+            if(SELF_TEST.equals(name)) {
+                response=DnsPacket.failure(query,3); // Health checks are not ad-block counts.
+            } else if(rules.blocks(name)) {
                 response=DnsPacket.failure(query,3); blocked.incrementAndGet();
                 if(diagnosing() || prefs(this).getBoolean("diagnostics",false))log(name,"已拦截");
             } else {
@@ -387,6 +469,7 @@ public final class FilterVpnService extends VpnService {
     }
     private void stopFiltering(boolean endSession) {
         cancelStartTimeout();
+        healthChecking=false;lastCheckElapsed=-1;
         generation++;
         closed=true; running=false; starting=false;
         if(waiter!=null) {if(reader==null)waiter.close();else waiter.signalStop();}
@@ -397,6 +480,7 @@ public final class FilterVpnService extends VpnService {
         if(reader!=null) reader.interrupt();
         tun=null;reader=null;waiter=null;pool=null;
         if(endSession){
+            foregroundActive=false;
             handoffHandler.removeCallbacksAndMessages(null);
             if(vpnMonitor!=null){vpnMonitor.close();vpnMonitor=null;}
             waitingForVpn=false;needsConsent=false;
@@ -408,7 +492,9 @@ public final class FilterVpnService extends VpnService {
         notifyState(this);
     }
     @Override public void onDestroy() {
+        if(destroyed)return;
         destroyed=true;
+        unregisterReceiver(wakeReceiver);healthWorker.shutdownNow();
         stopFiltering();
         ruleWorker.shutdownNow();
         if(instance==this)instance=null;

@@ -27,6 +27,6 @@ final class BackgroundSupport {
         return new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:"+context.getPackageName()));
     }
     static boolean needsAccessHelp(AccessibilityStatus.State state){
-        return state==AccessibilityStatus.State.DISCONNECTED||state==AccessibilityStatus.State.NOT_ENABLED||state==AccessibilityStatus.State.UNKNOWN;
+        return state==AccessibilityStatus.State.DISCONNECTED||state==AccessibilityStatus.State.NOT_ENABLED||state==AccessibilityStatus.State.UNKNOWN||state==AccessibilityStatus.State.UNRESPONSIVE;
     }
 }

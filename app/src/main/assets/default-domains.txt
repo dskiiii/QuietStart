@@ -38,3 +38,7 @@ sdk.zhangyuyidong.cn
 oss.cdn.adintl.cn
 afd.baidu.com
 afdconf.baidu.com
+# Ujing advertising endpoint: observed on-device 2026-11-14, also in bundled anti-AD.
+# Keep this exact host covered when the full list is disabled. Do not block ujing.online
+# or zhinengxiyifang.cn wholesale; they also serve normal app functions.
+ads.zhinengxiyifang.cn

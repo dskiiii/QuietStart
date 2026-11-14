@@ -2,7 +2,19 @@
 
 [中文](README.md) | English
 
-Current version: **0.6.14**. [Download APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.14/QuietStart-0.6.14.apk) · [Release notes and checksums](https://github.com/dskiiii/QuietStart/releases/tag/v0.6.14).
+Current version: **0.6.18**. [Download APK](https://github.com/dskiiii/QuietStart/releases/download/v0.6.18/QuietStart-0.6.18.apk) · [Release notes and checksums](https://github.com/dskiiii/QuietStart/releases/tag/v0.6.18).
+
+## 0.6.18 update
+
+- Includes revisions 0.6.15–0.6.18: bottom-corner skipping, description labels, small clickable wrappers, filtering recovery after process recreation, and accessibility state checks.
+- Adds bounded markerless splash handling for Baidu Netdisk, Idle Fish and Ujing; resolves foreground focus independently of background events and uses revalidated touch fallback for qualifying countdown controls.
+- Includes Ujing's existing full-list ad endpoint in the lightweight list. This does not expand coverage for users already using the full list.
+
+All 242 Android tests, 10,148 core checks, standalone skip-rule tests, build and lint pass. Version 0.6.18 was installed and its DNS self-check passed. Earlier recordings confirmed three NetEase, two Idle Fish and two final-0.6.17 Netdisk early dismissals. Idle Fish's new markerless style remains unverified on-device. Five Ujing cold starts after installing 0.6.18 showed no target splash: **real Ujing dismissal remains unverified, and no-ad observations do not establish filtering success**.
+
+See [Ujing and current APK verification](VERIFICATION-0.6.18.md), [Netdisk and Idle Fish](VERIFICATION-0.6.17.md), [process recovery and multi-day follow-up](VERIFICATION-0.6.16.md), and [corner coverage](VERIFICATION-0.6.15.md). Revisions 0.6.15–0.6.17 are included in this release; older entries retain their historical test status.
+
+## 0.6.14 update
 
 - Simplified home and settings: a compact forest-green card and shield, automatic skipping, and shortcuts to filtering scope and background permissions. Technical records remain under diagnostics.
 - Optional background support distinguishes missing accessibility authorization from a disconnected service. Battery exemptions require explicit user action; autostart, task locking and unrestricted battery use are not mandatory setup steps. Force-stop may still revoke authorization on some devices.

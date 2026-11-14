@@ -12,6 +12,10 @@ public final class SkipRulesTest {
         if(!SkipRules.adMarker("广告")||!SkipRules.closeLabel("×")||SkipRules.closeLabel("取消")||SkipRules.closeLabel("确认"))throw new AssertionError("local labels");
         if(!SkipRules.smallBounds(400,1600,500,1700,1080,2340)||SkipRules.smallBounds(-1,0,50,50,1080,2340)||SkipRules.smallBounds(0,0,1080,2340,1080,2340))throw new AssertionError("popup bounds");
         if(!SkipRules.safeBounds(800,90,1030,200,1080,2340))throw new AssertionError("valid button");
+        for(int[] box:new int[][]{{800,90,1030,200},{20,2100,260,2200},{820,2100,1060,2200}})
+            if(!SkipRules.openingBounds(box[0],box[1],box[2],box[3],1080,2340))throw new AssertionError("ad skip corner");
+        for(int[] box:new int[][]{{400,2100,650,2200},{20,900,260,1000},{-10,2100,260,2200},{20,2100,260,2400},{0,0,1080,2340}})
+            if(SkipRules.openingBounds(box[0],box[1],box[2],box[3],1080,2340))throw new AssertionError("unsafe ad skip corner");
         if(!SkipRules.ctripTap("ctrip.android.view","跳过广告",null,847,141,1003,193,1080,2340))throw new AssertionError("Ctrip observed label");
         if(SkipRules.ctripTap("com.example.app","跳过广告",null,847,141,1003,193,1080,2340)||SkipRules.ctripTap("ctrip.android.view","立即参与",null,847,141,1003,193,1080,2340)||SkipRules.ctripTap("ctrip.android.view","跳过广告",null,0,123,1080,211,1080,2340)||SkipRules.ctripTap("ctrip.android.view","跳过广告",null,847,1410,1003,1493,1080,2340))throw new AssertionError("unsafe Ctrip gesture");
         if(SkipRules.safeBounds(0,0,1080,2340,1080,2340)||SkipRules.safeBounds(800,1600,1030,1720,1080,2340)||SkipRules.safeBounds(800,90,1200,200,1080,2340))throw new AssertionError("unsafe click area");

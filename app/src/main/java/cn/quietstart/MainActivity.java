@@ -258,6 +258,9 @@ public final class MainActivity extends Activity {
         android.content.SharedPreferences p=FilterVpnService.prefs(this);
         StringBuilder report=new StringBuilder(AccessibilityStatus.label(AccessibilityStatus.read(this)))
             .append("\n事件：").append(AdSkipService.received).append("，扫描：").append(AdSkipService.scans)
+            .append("\n最近收到界面事件：").append(diagnosticTime(AdSkipService.lastEventAt))
+            .append("\n最近扫描完成：").append(diagnosticTime(AdSkipService.lastScanFinishedAt))
+            .append("\n过滤链路检查：").append(diagnosticTime(FilterVpnService.lastHealthCheck)).append(" · ").append(FilterVpnService.healthResult)
             .append("\n").append(AdSkipService.outcome).append("\n").append(AdSkipService.lastPackage)
             .append("\n累计发出点击：").append(p.getLong("skip_clicks",0)).append("（不等于成功关闭次数）")
             .append("\n携程：").append(p.getString("ctrip_tap_status","暂无记录"));
@@ -267,6 +270,7 @@ public final class MainActivity extends Activity {
         }
         message("自动跳过记录",report.toString());
     }
+    private String diagnosticTime(long time){return time==0?"本次运行暂无记录":new java.text.SimpleDateFormat("MM-dd HH:mm:ss",Locale.CHINA).format(new Date(time));}
     private void editSkipExclusions(){
         EditText input=new EditText(this);input.setMinLines(4);input.setHint("每行一个应用包名，例如 com.example.app");
         input.setText(String.join("\n",FilterVpnService.prefs(this).getStringSet("skip_excluded",Collections.emptySet())));
@@ -364,6 +368,9 @@ public final class MainActivity extends Activity {
             case CONNECTED:
                 dialog.setTitle("自动跳过已连接").setMessage("当前连接正常，无需额外设置。")
                         .setPositiveButton("知道了",null).setNeutralButton("后台选项",(d,w)->showPage("background"));break;
+            case UNRESPONSIVE:
+                dialog.setTitle("自动跳过暂未响应").setMessage("权限仍保留，但扫描没有及时完成。可稍后检查；持续异常时可在系统无障碍设置中重新连接静启。")
+                        .setPositiveButton("查看系统设置",(d,w)->open(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));break;
             case OFF:
                 dialog.setTitle("自动跳过已暂停").setMessage("在首页打开“自动跳过广告”即可。")
                         .setPositiveButton("查看开关",(d,w)->showPage("skip"));break;
@@ -389,6 +396,7 @@ public final class MainActivity extends Activity {
                 case OFF:hint="已关闭";break;
                 case NOT_ENABLED:hint="需要允许无障碍权限";break;
                 case DISCONNECTED:hint="正在等待系统连接";break;
+                case UNRESPONSIVE:hint="扫描暂未响应";break;
                 default:hint="请检查无障碍权限";
             }
             skipStatus.setText(("background".equals(page)?"自动跳过：":"")+hint);
@@ -399,7 +407,7 @@ public final class MainActivity extends Activity {
             }
         }
         if(protectionArt!=null)protectionArt.setActive(FilterVpnService.running);
-        if(status!=null)status.setText(FilterVpnService.stopping?"正在暂停…":FilterVpnService.needsConsent?"等待授权":FilterVpnService.starting?"正在开启…":FilterVpnService.waitingForVpn?"其他 VPN 使用中":FilterVpnService.running?"过滤已开启":"过滤未开启");
+        if(status!=null)status.setText(FilterVpnService.stopping?"正在暂停…":FilterVpnService.needsConsent?"等待授权":FilterVpnService.starting?"正在开启…":FilterVpnService.waitingForVpn?"等待恢复过滤":FilterVpnService.healthChecking?"正在检查过滤":FilterVpnService.healthProblem?"过滤需要检查":FilterVpnService.running?"过滤已开启":"过滤未开启");
         if(mainToggle!=null){
             mainToggle.setText(FilterVpnService.needsConsent?"继续开启":FilterVpnService.stopping?"正在暂停…":FilterVpnService.starting?"取消开启":FilterVpnService.waitingForVpn?"暂停过滤":FilterVpnService.running?"暂停过滤":"开启过滤");
             mainToggle.setEnabled(!FilterVpnService.stopping);
@@ -533,7 +541,7 @@ public final class MainActivity extends Activity {
     private void append(String key,String domain) {try{Rules.normalize(domain);saveRuleText(key,FilterVpnService.prefs(this).getString(key,"")+"\n"+domain);}catch(IllegalArgumentException e){message("无法添加",e.getMessage());}}
     @Override protected void onStart(){super.onStart();registerReceiver(stateReceiver,new IntentFilter(FilterVpnService.STATE_CHANGED),Context.RECEIVER_NOT_EXPORTED);}
     @Override protected void onStop(){unregisterReceiver(stateReceiver);super.onStop();}
-    @Override protected void onResume(){super.onResume();handler.removeCallbacks(tick);refresh();handler.post(tick);}
+    @Override protected void onResume(){super.onResume();FilterVpnService.restoreRequestedFiltering(this);FilterVpnService.requestHealthCheck(this);handler.removeCallbacks(tick);refresh();handler.post(tick);}
     @Override protected void onPause(){handler.removeCallbacks(tick);super.onPause();}
     @Override public void onBackPressed(){if("home".equals(page))finishAndRemoveTask();else showPage(parentPage());}
     @Override protected void onSaveInstanceState(Bundle state){state.putString("page",page);state.putString("home_shortcut",homeShortcut);state.putBoolean("vpn_request_pending",vpnRequestPending);state.putLong("vpn_request_epoch",vpnRequestEpoch);super.onSaveInstanceState(state);}

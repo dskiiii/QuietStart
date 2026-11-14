@@ -18,6 +18,12 @@ public class CoreTest {
         System.arraycopy(dns,0,b,28,dns.length);DnsPacket.put16(b,10,DnsPacket.checksum(b,0,20));return b;
     }
     public static void main(String[] args) throws Exception {
+        String ujingDefaults=java.nio.file.Files.readString(java.nio.file.Path.of("app/src/main/assets/default-domains.txt"));
+        Rules lightweight=new Rules(ujingDefaults,"","");
+        check(lightweight.blocks("ads.zhinengxiyifang.cn"),"Ujing ad endpoint covered without full subscription");
+        for(String business:new String[]{"phoenix.ujing.online","s.zhinengxiyifang.cn","check.ujing.online","d.ujing.online","adsoss.zhinengxiyifang.cn"})
+            check(!lightweight.blocks(business),"Ujing business and unverified shared-resource hosts preserved: "+business);
+        check(!new Rules(ujingDefaults,"","ads.zhinengxiyifang.cn").blocks("ads.zhinengxiyifang.cn"),"explicit Ujing allow override retained");
         for(String valid:new String[]{"EXAMPLE.COM.","a-b.example.com","例子.中国"})check(Rules.normalize(valid).equals(java.net.IDN.toASCII(valid.toLowerCase(java.util.Locale.ROOT).replaceFirst("\\.$",""),java.net.IDN.USE_STD3_ASCII_RULES)),"ASCII fast path retains IDN normalization");
         for(String invalid:new String[]{"-ad.example.com","ad-.example.com","ad_x.example.com","ad/example.com","a..com"}){
             boolean failed=false;try{Rules.normalize(invalid);}catch(IllegalArgumentException e){failed=true;}check(failed,"ASCII fast path rejects invalid domain");

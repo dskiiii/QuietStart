@@ -40,6 +40,30 @@ public class AccessibilityStatusTest {
     @Test public void emptySystemListRequiresEnablement(){
         assertEquals(AccessibilityStatus.State.NOT_ENABLED,AccessibilityStatus.read(context));
     }
+    @Test public void staleConnectedFlagCannotOverrideRemovedAuthorization(){
+        AdSkipService.connected=true;
+        configure(null);
+        assertEquals(AccessibilityStatus.State.NOT_ENABLED,AccessibilityStatus.read(context));
+    }
+    @Test public void twoDaysWithoutEventsIsNotTreatedAsFailure(){
+        configure(component);AdSkipService.connected=true;
+        org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofDays(2));
+        assertEquals(AccessibilityStatus.State.CONNECTED,AccessibilityStatus.read(context));
+    }
+    @Test public void stuckScanIsDifferentFromMissingPermission()throws Exception{
+        configure(component);AdSkipService service=Robolectric.buildService(AdSkipService.class).create().get();
+        try{
+            AdSkipService.connected=true;
+            java.lang.reflect.Field busy=AdSkipService.class.getDeclaredField("busy");busy.setAccessible(true);
+            java.lang.reflect.Field since=AdSkipService.class.getDeclaredField("scanStartedUptime");since.setAccessible(true);since.setLong(service,android.os.SystemClock.uptimeMillis());
+            ((java.util.concurrent.atomic.AtomicBoolean)busy.get(service)).set(true);
+            org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(16));
+            assertEquals(AccessibilityStatus.State.UNRESPONSIVE,AccessibilityStatus.read(context));
+            assertTrue(BackgroundSupport.needsAccessHelp(AccessibilityStatus.read(context)));
+            ((java.util.concurrent.atomic.AtomicBoolean)busy.get(service)).set(false);
+            assertEquals(AccessibilityStatus.State.CONNECTED,AccessibilityStatus.read(context));
+        }finally{service.onDestroy();}
+    }
     @Test public void appPausePreservesSystemSettingAndCanResume(){
         configure(component);
         FilterVpnService.prefs(context).edit().putBoolean("skip_ads",false).commit();
